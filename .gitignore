@@ -1,0 +1,18 @@
+# Local notes and generated practice exports
+Fieldguide_Progress_Backup*.json
+Fieldguide_*_*.txt
+backups/
+notes/
+
+# Local credentials and caches
+.env
+.env.*
+__pycache__/
+*.py[cod]
+node_modules/
+.DS_Store
+Thumbs.db
+
+# Intermediate builds; ready-to-open root deliverables are tracked
+/dist/index.html
+/dist/downloads/

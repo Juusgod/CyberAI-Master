@@ -1,0 +1,16 @@
+CyberAI Master logo design
+
+Created with the built-in image generation tool. The supplied desktop PNG,
+favicon PNG, and multi-resolution Windows ICO are the same generated design,
+with only mechanical downsampling and format conversion for their intended use.
+
+Final generation prompt:
+
+Use case: logo-brand.
+Asset type: final Windows desktop application icon for CyberAI Master, an offline cybersecurity and AI investigation learning lab.
+Primary request: create ONE original, polished, extremely legible application logo, square composition. A deep evergreen rounded-square badge (#102526) carries a bold mint shield outline (#b9f7cf). Within the shield, a simple thick circular feedback arrow surrounds a small warm-gold diamond core. The shield communicates cybersecurity, the circular arrow communicates controlled investigation loops, and the core suggests intelligence/evidence. Simplify the shapes so the mark remains clear at 32 pixels.
+Style: refined flat geometric icon with crisp clean edges and excellent silhouette; restrained subtle edge shading is acceptable, no busy detail.
+Composition: centered, one complete icon, balanced proportions, badge occupies roughly 88 percent of square canvas with transparent outer margin. The mark must work on both light and dark Windows desktops.
+Color palette: deep evergreen, fresh pale mint, one small warm gold accent.
+Text: none. No letters, labels, words, numbers, border captions, or watermark.
+Constraints: genuinely transparent background outside the badge; preserve opaque dark badge interior. One design only, no multiple variations, no device mockup, no scene, no photographs, no padlock/keyhole, no tiny circuit traces. Large purposeful shapes. Professional original identity.

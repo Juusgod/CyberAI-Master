@@ -1,0 +1,87 @@
+<div id="cyber-prompt-brief">
+  <h3>Equip your prompt: BRIEF</h3>
+  <div class="viz-controls" role="group" aria-label="Inspect a prompt component">
+    <button type="button" class="btn" data-part="0" aria-pressed="true">B · Brief</button>
+    <button type="button" class="btn" data-part="1" aria-pressed="false">R · Records</button>
+    <button type="button" class="btn" data-part="2" aria-pressed="false">I · Instructions</button>
+    <button type="button" class="btn" data-part="3" aria-pressed="false">E · Expected output</button>
+    <button type="button" class="btn" data-part="4" aria-pressed="false">F · Finish</button>
+  </div>
+  <div class="brief-figure" role="img" aria-label="Five parts of a prompt connect to five qualities an analyst can check in the answer."></div>
+  <div class="brief-detail" aria-live="polite">Brief: give the model one specific decision to help with.</div>
+</div>
+<style>
+  #cyber-prompt-brief { color: var(--foreground); }
+  #cyber-prompt-brief h3 { padding-inline-end: 92px; }
+  #cyber-prompt-brief .brief-figure { width: 100%; margin-block: 14px 10px; }
+  #cyber-prompt-brief .brief-figure svg { display: block; width: 100%; }
+  #cyber-prompt-brief .brief-figure text { fill: var(--foreground); font-family: inherit; }
+  #cyber-prompt-brief .brief-detail { min-height: 3em; }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('cyber-prompt-brief');
+  const canvas = root.querySelector('.brief-figure');
+  const detail = root.querySelector('.brief-detail');
+  const buttons = Array.from(root.querySelectorAll('[data-part]'));
+  const ns = 'http://www.w3.org/2000/svg';
+  let active = 0;
+  const parts = [
+    { letter:'B', label:'Brief', input:['Assess the sign-in','sequence'], compactInput:['Assess sign-in','sequence'], output:['One defined','decision'], compactOutput:['One clear','decision'], detail:'Brief: give the model one specific decision to help with.' },
+    { letter:'R', label:'Records', input:['E1 / E2 + timestamps','and source IDs'], compactInput:['E1 / E2 + time','source IDs'], output:['Claims linked','to evidence'], compactOutput:['Cited','evidence'], detail:'Records: supply relevant evidence with stable identifiers.' },
+    { letter:'I', label:'Instructions', input:['Facts ≠ hypotheses;','read-only scope'], compactInput:['Facts ≠ guesses','read-only'], output:['Visible limits','and uncertainty'], compactOutput:['Limits +','unknowns'], detail:'Instructions: state the analytical rules; enforce tool permissions in code.' },
+    { letter:'E', label:'Expected output', input:['Assessment · facts','gaps · next check'], compactInput:['Finding · gaps','next check'], output:['A consistent','review format'], compactOutput:['Consistent','format'], detail:'Expected output: define fields that a person or program can inspect.' },
+    { letter:'F', label:'Finish', input:['Supported finding','or unresolved'], compactInput:['Supported','or unresolved'], output:['A legitimate','stopping point'], compactOutput:['Valid','stop'], detail:'Finish: allow unresolved as an honest outcome when evidence is insufficient.' }
+  ];
+  function el(tag, attrs, content) {
+    const item = document.createElementNS(ns, tag);
+    Object.entries(attrs || {}).forEach(([key,value]) => item.setAttribute(key,String(value)));
+    if (content !== undefined) item.textContent = content;
+    return item;
+  }
+  function label(svg, x, y, lines, attrs = {}) {
+    const text = el('text', {x,y,...attrs});
+    lines.forEach((line,index) => text.appendChild(el('tspan', {x,dy:index === 0 ? 0 : 20}, line)));
+    svg.appendChild(text);
+  }
+  function render() {
+    const w = Math.max(280, Math.round(canvas.getBoundingClientRect().width));
+    const compact = w < 520;
+    const h = compact ? 640 : 510;
+    const svg = el('svg', {viewBox:`0 0 ${w} ${h}`, width:w, height:h, role:'presentation'});
+    const defs = el('defs');
+    const marker = el('marker', {id:'brief-arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:5,markerHeight:5,orient:'auto-start-reverse'});
+    marker.appendChild(el('path', {d:'M 0 0 L 10 5 L 0 10 z',fill:'var(--muted-foreground)'}));
+    defs.appendChild(marker); svg.appendChild(defs);
+    const left = compact ? 8 : 12;
+    const gap = compact ? 27 : 52;
+    const inWidth = compact ? Math.round((w - 43) * .54) : Math.round((w - 76) * .56);
+    const outX = left + inWidth + gap;
+    const outWidth = w - outX - (compact ? 8 : 12);
+    label(svg,left,22,['Prompt packet'],{'font-weight':500});
+    label(svg,outX,22,compact ? ['Reviewable','answer'] : ['Reviewable answer'],{'font-weight':500});
+    parts.forEach((part,index) => {
+      const y = (compact ? 68 : 48) + index * (compact ? 112 : 88);
+      const height = compact ? 100 : 76;
+      const selected = index === active;
+      const fill = selected ? 'color-mix(in srgb, var(--viz-series-1) 16%, transparent)' : 'var(--muted)';
+      svg.appendChild(el('rect', {x:left,y,width:inWidth,height,rx:6,fill}));
+      const shortLabel = index === 2 ? 'Rules' : index === 3 ? 'Output' : part.label;
+      label(svg,left+10,y+23,[`${part.letter} · ${compact ? shortLabel : part.label}`],{'font-weight':500});
+      label(svg,left+10,y+(compact ? 50 : 46),compact ? part.compactInput : part.input,{class:'text-small'});
+      svg.appendChild(el('path', {d:`M ${left+inWidth+3} ${y+height/2} H ${outX-5}`,stroke:'var(--muted-foreground)','stroke-width':1.25,fill:'none','marker-end':'url(#brief-arrow)'}));
+      svg.appendChild(el('rect', {x:outX,y,width:outWidth,height,rx:6,fill:selected ? 'color-mix(in srgb, var(--viz-series-1) 10%, transparent)' : 'transparent'}));
+      label(svg,outX+8,y+height/2-6,compact ? part.compactOutput : part.output,{class:compact ? 'text-small' : '', 'font-weight':selected ? 500 : 400});
+    });
+    canvas.replaceChildren(svg);
+  }
+  buttons.forEach(button => button.addEventListener('click', () => {
+    active = Number(button.dataset.part);
+    buttons.forEach(other => other.setAttribute('aria-pressed',String(other === button)));
+    detail.textContent = parts[active].detail;
+    render();
+  }));
+  new ResizeObserver(render).observe(canvas);
+  render();
+})();
+</script>

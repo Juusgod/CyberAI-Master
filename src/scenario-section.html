@@ -1,0 +1,25 @@
+<section class="lesson-section scenario-section" id="scenario-lab" aria-labelledby="scenario-lab-title">
+  <p class="eyebrow">Keep practicing · Offline scenario lab</p>
+  <h2 id="scenario-lab-title">A new case. A new decision.</h2>
+  <p>Practice the same prompt-and-loop skills across identity, email, cloud, endpoint, network, application, and data investigations. Each case supplies a brief, initial records, read-only checks, and a guided debrief.</p>
+  <div class="lab-intro"><div><strong id="lab-family-count">36</strong><span>scenario families</span></div><div><strong id="lab-path-count">108</strong><span>authored outcome paths</span></div><p>Seeded variations change the case context and evidence conditions. All activity is simulated locally. The reference feedback uses authored rules; your written reasoning is not graded by AI.</p></div>
+  <div class="lab-settings">
+    <label for="lab-topic">Topic<select id="lab-topic"><option value="all">Mix all topics</option></select></label>
+    <label for="lab-mode">Practice mode<select id="lab-mode"><option value="guided">Guided · hints + 3 checks</option><option value="standard" selected>Standard · 2 checks</option><option value="advanced">Advanced · fewer hints</option></select></label>
+    <label for="lab-twist">Evidence conditions<select id="lab-twist"><option value="auto">Vary automatically</option><option value="complete">Complete lookup results</option><option value="gap">Missing telemetry</option><option value="stale">Stale reference data</option><option value="conflict">Conflicting records</option><option value="timeout">Tool timeout</option><option value="injection">Hidden instruction</option></select></label>
+    <button type="button" id="lab-generate" class="lab-primary">Generate new case <span aria-hidden="true">→</span></button>
+  </div>
+  <p class="lab-small">New cases cycle through the selected topic’s families before repeating a family. Modes change the guidance and check budget. The six guided missions above remain available.</p>
+  <details class="lab-replay"><summary>Replay a case code</summary><p>Send the code to a friend using the same edition to recreate the same scenario. A case code does not contain your answers.</p><label for="lab-code-input">Case code</label><div class="lab-replay-row"><input id="lab-code-input" type="text" spellcheck="false" autocomplete="off" maxlength="160" placeholder="FGL1~family~seed~mode~condition"><button type="button" id="lab-load-code">Load case</button></div></details>
+  <p id="lab-live-status" class="lab-status" role="status" aria-live="polite"></p>
+  <div id="lab-case"><p>The scenario lab is loading. JavaScript must be enabled in your browser for interactive practice.</p></div>
+</section>
+<section class="lesson-section" id="offline" aria-labelledby="offline-title">
+  <p class="eyebrow">Yours to keep · No service required</p>
+  <h2 id="offline-title">Take the whole lab offline.</h2>
+  <p>Download the single HTML file, then double-click it to open it in a desktop browser. The lesson, diagrams, and scenario generator are inside that one file. No account, API key, server, package installation, or internet connection is needed for the exercises.</p>
+  <div class="offline-actions"><a class="primary-button" href="./downloads/Cybersecurity_AI_Lab.html" download="Cybersecurity_AI_Lab.html" data-download-offline>Download offline HTML ↓</a><a href="./downloads/Cybersecurity_AI_Lab_Offline.zip" download class="online-only">Get the offline ZIP + optional launcher</a></div>
+  <p class="lab-small" id="offline-mode-note">The ZIP includes the CyberAI Master logo and a Windows desktop-shortcut creator. Extract it, run Create_Desktop_Shortcut.cmd, then open the new desktop icon. It also includes an optional Python 3 server that selects a free local port and opens your browser. Opening the HTML itself requires no Python. Research links need internet when followed.</p>
+  <div class="offline-backup"><h3>Keep or move your practice notes</h3><p>Notes save in this browser when browser storage is available. Local-file storage behavior varies between browsers; export a backup before moving the file, clearing browser data, or changing browsers.</p><div class="offline-actions"><button type="button" id="lab-export-progress">Export notes & progress</button><label class="import-label" for="lab-import-progress">Import a backup<input id="lab-import-progress" type="file" accept="application/json,.json"></label></div><p id="lab-backup-status" class="lab-small" role="status" aria-live="polite">Backups are local JSON files. They include your typed notes and the current case state.</p></div>
+  <p class="lab-small">To share without hosting, send your friend the HTML file. A local file does not create a public internet link. The online edition remains available at its existing shareable address.</p>
+</section>

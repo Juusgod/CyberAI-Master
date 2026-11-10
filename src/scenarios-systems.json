@@ -1,0 +1,1929 @@
+[
+  {
+    "id": "sys-script-execution",
+    "category": "Endpoint & network",
+    "title": "A script runs from an unusual parent",
+    "assetType": "managed endpoint",
+    "brief": "Triage a script-execution alert and state which observations justify escalation or a limited legitimate explanation.",
+    "context": "{{org}} monitors {{host}}, a workstation assigned to {{user}}. A script interpreter launched during a remote administration session, and the alert does not establish who initiated the session.",
+    "initial": [
+      {
+        "source": "Process telemetry",
+        "text": "At {{time}}, a script interpreter started on {{host}} under session {{session}}. Its parent was a remote administration agent."
+      },
+      {
+        "source": "Endpoint alert",
+        "text": "The alert records {{count}} child-process events and a script path inside a temporary work directory."
+      },
+      {
+        "source": "Collection status",
+        "text": "The initial bundle contains the process names but omits the script content, signer details, and session authorization."
+      }
+    ],
+    "unknowns": [
+      "Whether this script matches an approved task",
+      "What actions its child processes performed",
+      "Who controlled the remote session"
+    ],
+    "hypotheses": [
+      "An approved maintenance task used temporary staging",
+      "An intruder used a legitimate administration channel",
+      "Incomplete telemetry makes routine activity look unusual"
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read task and script provenance",
+        "purpose": "Match the script hash and session to an approved maintenance record.",
+        "tool": "read_script_provenance",
+        "scope": "{{host}}, {{session}}, the alert time window"
+      },
+      {
+        "id": "activity",
+        "label": "Read the correlated process tree",
+        "purpose": "Inspect recorded child actions and their affected resources.",
+        "tool": "read_process_activity",
+        "scope": "Process tree belonging to {{session}} on {{host}}"
+      },
+      {
+        "id": "background",
+        "label": "Read the fleet interpreter inventory",
+        "purpose": "Learn whether the interpreter is widely installed; this does not explain this execution.",
+        "tool": "read_software_inventory",
+        "scope": "Interpreter installation counts only"
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The script hash matches the reviewed maintenance package in {{ticket}}. The session identity and host are within that approved task's scope.",
+          "Recorded child actions update the approved application and write its expected installation log. The package's expected paths match the observed paths.",
+          "The interpreter is installed on many managed endpoints. Installation prevalence does not establish the purpose of this process."
+        ],
+        "reasoning": "Matching task provenance and bounded, expected child actions support the maintenance explanation for this execution.",
+        "remaining": [
+          "Whether every relevant child event was collected",
+          "Whether the remote session had unrelated activity outside this window"
+        ],
+        "next": "Record the matched task and retain the process evidence; investigate any activity outside the documented task separately.",
+        "pitfall": "A script interpreter or temporary path alone is not proof of malicious execution."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The approved task for this window uses a different script hash and a different session identity. No task record covers the observed script.",
+          "The correlated process tree shows unexpected reads of application credential files followed by an outbound transfer attempt. Those actions are outside the maintenance task.",
+          "The interpreter is installed on many managed endpoints. Installation prevalence does not establish the purpose of this process."
+        ],
+        "reasoning": "The provenance mismatch and correlated credential-file access support escalating possible misuse of the administration session. They do not identify the operator or prove that a transfer succeeded.",
+        "remaining": [
+          "Whether sensitive data actually left the endpoint",
+          "Whether the session credential was stolen or otherwise misused"
+        ],
+        "next": "Escalate with the exact process and session references; request transfer-outcome records and session-origin evidence.",
+        "pitfall": "Do not call the transfer successful when the record shows only an attempt."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The task archive contains the session identifier but no retained script hash. The maintenance owner has not yet verified the package.",
+          "Process collection stopped after the interpreter launch, so child actions cannot be reconstructed from this source.",
+          "The interpreter is installed on many managed endpoints. Installation prevalence does not establish the purpose of this process."
+        ],
+        "reasoning": "Neither task provenance nor execution behavior can be established from the available records. The execution remains unresolved.",
+        "remaining": [
+          "The script content or verified hash",
+          "The missing child-process activity"
+        ],
+        "next": "Request the approved package record and an independent execution log; preserve the uncertainty if neither is available.",
+        "pitfall": "A missing process tree does not mean no child actions occurred."
+      }
+    ],
+    "challenge": "Which instruction would stop the assistant from treating an unusual interpreter launch as a confirmed compromise?",
+    "debriefPrinciple": "Separate the mechanism used to execute a task from the evidence of what that task actually did."
+  },
+  {
+    "id": "sys-new-autorun",
+    "category": "Endpoint & network",
+    "title": "A new startup entry appears",
+    "assetType": "endpoint startup configuration",
+    "brief": "Assess a newly created startup entry using provenance and subsequent execution evidence.",
+    "context": "{{org}} receives a startup-persistence alert from {{host}}. Software deployment and user sign-in occurred nearby in time, so temporal coincidence alone cannot establish the entry's purpose.",
+    "initial": [
+      {
+        "source": "Configuration change",
+        "text": "At {{time}}, a new user-level startup entry was created on {{host}} for an executable in an application-data directory."
+      },
+      {
+        "source": "Session record",
+        "text": "The change is associated with {{user}} and session {{session}}."
+      },
+      {
+        "source": "Deployment calendar",
+        "text": "A software deployment window overlaps the alert, but the initial record does not list its expected startup entries."
+      }
+    ],
+    "unknowns": [
+      "Whether the entry belongs to the approved deployment",
+      "What executable the entry resolves to",
+      "What happened when the entry executed"
+    ],
+    "hypotheses": [
+      "A legitimate application added a user startup helper",
+      "Unauthorized software established a recurring launch path",
+      "A stale inventory mapping prevents reliable attribution"
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read package and entry provenance",
+        "purpose": "Compare the exact entry and binary hash with the deployment manifest.",
+        "tool": "read_autorun_provenance",
+        "scope": "The new entry on {{host}} and its referenced binary"
+      },
+      {
+        "id": "activity",
+        "label": "Read the first recorded execution",
+        "purpose": "Inspect the actual target and behavior when the entry runs.",
+        "tool": "read_autorun_execution",
+        "scope": "The startup entry and its first execution after {{time}}"
+      },
+      {
+        "id": "background",
+        "label": "Read total startup-entry counts",
+        "purpose": "Compare the host's entry count with the fleet without attributing this entry.",
+        "tool": "read_startup_counts",
+        "scope": "Aggregate startup-entry counts"
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The approved package manifest in {{ticket}} lists this exact startup entry and binary hash. The package was deployed to {{host}} in the recorded window.",
+          "The entry launches the packaged synchronization helper. Recorded activity is limited to its documented application directory and configured service.",
+          "Other workstations have a range of startup-entry counts. Counts alone cannot identify the owner of this entry."
+        ],
+        "reasoning": "The exact manifest match and expected execution support an authorized application helper explanation.",
+        "remaining": [
+          "Whether later executions remain within documented behavior",
+          "Whether this package version is still approved"
+        ],
+        "next": "Document the matching package and first execution; use the normal software review process for later deviations.",
+        "pitfall": "A user-writable location is a risk clue, not a verdict by itself."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The deployment manifest does not contain this entry. Its binary hash differs from the installed application's reviewed helper.",
+          "The entry launches an unrecognized binary that reads browser profile files and contacts {{domain}}. That activity is absent from the deployment's documented behavior.",
+          "Other workstations have a range of startup-entry counts. Counts alone cannot identify the owner of this entry."
+        ],
+        "reasoning": "An unmatched startup entry plus correlated access to browser profile data supports escalation of possible unauthorized persistence.",
+        "remaining": [
+          "The binary's origin and full behavior",
+          "Whether any profile data was transmitted"
+        ],
+        "next": "Preserve the entry, binary hash, and execution trace; request authorized binary analysis and transfer records.",
+        "pitfall": "An outbound connection does not by itself prove exfiltration."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The deployment manifest was replaced during an inventory migration and no authoritative copy is available for this package version.",
+          "The endpoint was offline after the entry was created, so no execution is recorded in the available window.",
+          "Other workstations have a range of startup-entry counts. Counts alone cannot identify the owner of this entry."
+        ],
+        "reasoning": "The entry exists, but its provenance and runtime behavior remain unknown. An unresolved handoff is appropriate.",
+        "remaining": [
+          "The correct package manifest",
+          "A trustworthy record of the startup target and execution"
+        ],
+        "next": "Seek the retained deployment package or a verified configuration snapshot before assigning a final disposition.",
+        "pitfall": "No execution in this window does not establish that the entry can never run."
+      }
+    ],
+    "challenge": "Write one factual observation and one hypothesis about the startup entry without blending them.",
+    "debriefPrinciple": "An entry's existence, ownership, and observed behavior are separate claims."
+  },
+  {
+    "id": "sys-quarantined-binary",
+    "category": "Endpoint & network",
+    "title": "A file is quarantined, but did it run?",
+    "assetType": "endpoint file and process evidence",
+    "brief": "Determine what a quarantine alert establishes about execution and exposure.",
+    "context": "{{org}} receives a protection alert for a downloaded file on {{host}}. The user wants to know whether quarantine means the incident is finished.",
+    "initial": [
+      {
+        "source": "Protection alert",
+        "text": "At {{time}}, a file in {{user}}'s download directory was quarantined and given a suspicious-file label."
+      },
+      {
+        "source": "File record",
+        "text": "The file had been written to disk shortly before the alert. Its hash is present in the evidence bundle."
+      },
+      {
+        "source": "Initial response",
+        "text": "The console reports quarantine success, but the initial bundle includes no earlier process or file-access history."
+      }
+    ],
+    "unknowns": [
+      "Whether the file executed before quarantine",
+      "Whether the detection was reviewed or corrected",
+      "Whether related artifacts or activity remain"
+    ],
+    "hypotheses": [
+      "The file was blocked before execution",
+      "The file executed before it was removed",
+      "The detector flagged a legitimate file or evidence is incomplete"
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read the file verdict and provenance",
+        "purpose": "Check the recorded hash, download provenance, and current reviewed verdict.",
+        "tool": "read_file_verdict",
+        "scope": "The quarantined file hash on {{host}}"
+      },
+      {
+        "id": "activity",
+        "label": "Read correlated execution history",
+        "purpose": "Look for execution and related actions before quarantine.",
+        "tool": "read_file_execution",
+        "scope": "The file hash and the interval ending at {{time}}"
+      },
+      {
+        "id": "background",
+        "label": "Read the endpoint protection version",
+        "purpose": "Check the installed version without treating it as evidence of nonexecution.",
+        "tool": "read_protection_version",
+        "scope": "Protection version on {{host}}"
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The reviewed verdict identifies a malicious test fixture intentionally downloaded under {{ticket}}. The hash and test host match the exercise record.",
+          "Protection telemetry records the launch request being blocked before a process was created. The test's expected block event and quarantine record are correlated.",
+          "The installed protection version matches the organization's current inventory. That fact does not establish whether this file executed."
+        ],
+        "reasoning": "The verified test fixture and correlated pre-execution block support the expected exercise outcome for this file.",
+        "remaining": [
+          "Whether any unrelated files were part of the session",
+          "Whether collection covered the full test window"
+        ],
+        "next": "Retain the exercise references and block evidence; keep conclusions limited to this file and interval.",
+        "pitfall": "A current protection version is not proof that a particular file never ran."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The file was downloaded from a source outside the approved software process, and the reviewed verdict remains suspicious. No exercise or approved package matches the hash.",
+          "A process with the same file hash started before quarantine and spawned an unrecognized child process. The child continued after the parent file was quarantined.",
+          "The installed protection version matches the organization's current inventory. That fact does not establish whether this file executed."
+        ],
+        "reasoning": "The same-hash process and surviving child demonstrate prior execution and justify escalation beyond the quarantine event.",
+        "remaining": [
+          "The child process's complete activity",
+          "Whether the host has additional related artifacts"
+        ],
+        "next": "Request the child's process and connection history and escalate using the recorded execution timestamps.",
+        "pitfall": "Successful quarantine does not reverse actions already taken by an executed process."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The current verdict is awaiting review and download provenance was not retained. The file hash is available for further lookup.",
+          "Process telemetry for the interval before quarantine is missing; no independent execution log is included.",
+          "The installed protection version matches the organization's current inventory. That fact does not establish whether this file executed."
+        ],
+        "reasoning": "Quarantine success is supported, while prior execution and the final file verdict are unresolved.",
+        "remaining": [
+          "Whether the file executed before quarantine",
+          "The reviewed verdict and download source"
+        ],
+        "next": "Seek independent execution records and the completed verdict review; report quarantine and execution as separate statuses.",
+        "pitfall": "Do not translate missing execution records into a claim of no execution."
+      }
+    ],
+    "challenge": "How should the output separate 'file quarantined' from 'host unaffected'?",
+    "debriefPrinciple": "A remediation event establishes its own outcome, not the absence of earlier impact."
+  },
+  {
+    "id": "sys-file-encryption",
+    "category": "Endpoint & network",
+    "title": "A burst of renamed and rewritten files",
+    "assetType": "file server activity",
+    "brief": "Assess whether a file-change burst represents an approved transformation, unauthorized damage, or insufficient evidence.",
+    "context": "{{org}} detects rapid file changes involving a shared project area accessed from {{host}}. The alert uses a ransomware-oriented label, but no incident conclusion has been established.",
+    "initial": [
+      {
+        "source": "File audit",
+        "text": "At {{time}}, {{count}} files were rewritten or renamed in a project share by the identity associated with {{user}}."
+      },
+      {
+        "source": "Endpoint correlation",
+        "text": "The writes correlate to session {{session}} from {{host}}."
+      },
+      {
+        "source": "User report",
+        "text": "A report says several filenames now look different. The initial report does not include file contents or application logs."
+      }
+    ],
+    "unknowns": [
+      "Whether there was an approved bulk transformation",
+      "Whether the changed files remain usable",
+      "What process and identity initiated the changes"
+    ],
+    "hypotheses": [
+      "An approved migration or encryption task changed the files",
+      "Unauthorized software altered or encrypted shared data",
+      "A sync or application failure caused misleading file-change patterns"
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read the change plan and actor context",
+        "purpose": "Check whether the exact share, identity, and time were authorized for bulk changes.",
+        "tool": "read_file_change_context",
+        "scope": "Affected share, {{user}}, and {{session}}"
+      },
+      {
+        "id": "activity",
+        "label": "Read recorded file-validation results",
+        "purpose": "Compare retained validation and process evidence without changing live files.",
+        "tool": "read_file_change_validation",
+        "scope": "Samples from the affected paths and correlated process"
+      },
+      {
+        "id": "background",
+        "label": "Read storage-capacity metrics",
+        "purpose": "Check capacity trends, which do not identify the cause of rewrites.",
+        "tool": "read_share_capacity",
+        "scope": "Aggregate metrics for the affected share"
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Approved migration {{ticket}} lists the same project paths, task identity, and time window. Its manifest documents the naming change.",
+          "Retained validation reports show the transformed sample files open correctly and match the migration manifest. The process trace points to the approved migration utility.",
+          "The share has adequate free space. Capacity alone does not explain the file transformations."
+        ],
+        "reasoning": "Matching authorization, manifest, and validated output support the planned migration explanation for the sampled changes.",
+        "remaining": [
+          "Whether unsampled files also match the manifest",
+          "Whether changes extended beyond the approved paths"
+        ],
+        "next": "Record the verified samples and confirm the migration's full-scope validation through its owner.",
+        "pitfall": "A few healthy samples do not prove every affected file is intact."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The change owner confirms no bulk transformation was scheduled for these paths. The session identity is not the task identity used by approved migrations.",
+          "Retained samples fail their expected format checks, and the correlated process also attempted to alter recovery-related files. Those actions are not in any matching change record.",
+          "The share has adequate free space. Capacity alone does not explain the file transformations."
+        ],
+        "reasoning": "Unexpected destructive-looking changes and the correlated recovery-file activity support urgent escalation of possible malicious data alteration.",
+        "remaining": [
+          "The total affected scope and recoverability",
+          "Whether the recovery-file alteration succeeded"
+        ],
+        "next": "Escalate with the path list and validation failures; request the established containment and recovery workflow.",
+        "pitfall": "Do not infer successful destruction of backups from an attempt recorded in a process trace."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The change calendar lists a broad migration window, but its target paths and actor identity are not recorded.",
+          "The retained validation samples belong to a different project folder, so they cannot establish the integrity of the alerted files.",
+          "The share has adequate free space. Capacity alone does not explain the file transformations."
+        ],
+        "reasoning": "The broad change window and unrelated samples cannot explain or validate these changes. Their cause and impact remain unresolved.",
+        "remaining": [
+          "An exact authorization scope",
+          "Validation results for the actual affected paths"
+        ],
+        "next": "Request the specific migration manifest and correctly scoped file-validation evidence.",
+        "pitfall": "An overlapping maintenance window is not authorization for every contemporaneous action."
+      }
+    ],
+    "challenge": "Which evidence would let the assistant discuss impact without inventing how many files were damaged?",
+    "debriefPrinciple": "Scope authorization and scope evidence must match the resources affected."
+  },
+  {
+    "id": "sys-remote-admin",
+    "category": "Endpoint & network",
+    "title": "A remote administration session out of hours",
+    "assetType": "remote support session",
+    "brief": "Triage an unusual remote support session without assuming the tool itself is malicious.",
+    "context": "{{org}} uses a remote administration service for legitimate support. {{host}} records an evening session, and the analyst has only connection metadata.",
+    "initial": [
+      {
+        "source": "Remote service log",
+        "text": "At {{time}}, session {{session}} connected to {{host}} using the organization's remote administration agent."
+      },
+      {
+        "source": "Account record",
+        "text": "The remote session accessed the desktop associated with {{user}}."
+      },
+      {
+        "source": "Alert context",
+        "text": "The alert notes that the connection occurred outside this host's usual support hours. It does not include approval or performed actions."
+      }
+    ],
+    "unknowns": [
+      "Who initiated and approved the session",
+      "Whether the device and account were in authorized scope",
+      "Which actions the operator performed"
+    ],
+    "hypotheses": [
+      "An approved out-of-hours support task occurred",
+      "A legitimate remote tool was used without authorization",
+      "Session attribution or approval records are incomplete"
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read session identity and approval",
+        "purpose": "Correlate the operator identity and exact device with the support ticket.",
+        "tool": "read_remote_session_context",
+        "scope": "{{host}} and {{session}}"
+      },
+      {
+        "id": "activity",
+        "label": "Read the recorded session action log",
+        "purpose": "Inspect which resources and settings were accessed.",
+        "tool": "read_remote_session_activity",
+        "scope": "Actions within {{session}}"
+      },
+      {
+        "id": "background",
+        "label": "Read agent deployment coverage",
+        "purpose": "Check how common the installed tool is without inferring session legitimacy.",
+        "tool": "read_remote_agent_inventory",
+        "scope": "Aggregate agent inventory"
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Support ticket {{ticket}} authorizes this operator to repair this device in the recorded window. The authenticated operator identity matches the ticket.",
+          "Recorded actions install the approved driver and run the documented verification task. No action outside that task appears in the retained session log.",
+          "The agent is deployed to many managed devices. Its prevalence does not establish authorization for this session."
+        ],
+        "reasoning": "The matching approval and documented repair actions support a legitimate support explanation within the retained session evidence.",
+        "remaining": [
+          "Whether the session log is complete",
+          "Whether any separate sessions occurred"
+        ],
+        "next": "Attach the ticket and action references and close the analysis only under the organization's normal disposition policy.",
+        "pitfall": "An installed or approved tool does not authorize every use of it."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The operator identity is valid, but the support queue contains no request covering {{host}}. The ticket quoted in the session belongs to a different device.",
+          "The session action log shows access to a credential-management export and an attempt to copy it outside the device. Those actions are unrelated to the quoted repair task.",
+          "The agent is deployed to many managed devices. Its prevalence does not establish authorization for this session."
+        ],
+        "reasoning": "An out-of-scope ticket plus correlated access to a sensitive export supports escalation of unauthorized remote activity.",
+        "remaining": [
+          "Whether the copy completed",
+          "Whether the operator account was compromised or misused"
+        ],
+        "next": "Escalate the exact session and request copy-outcome and operator-authentication evidence.",
+        "pitfall": "A valid operator login does not establish legitimate intent."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The session uses a shared support identity. The approval record names a team but does not identify the operator or target device.",
+          "Session recording was disabled, and the retained log contains only start and end times.",
+          "The agent is deployed to many managed devices. Its prevalence does not establish authorization for this session."
+        ],
+        "reasoning": "The operator, authorization scope, and performed actions cannot be established. Connection metadata alone leaves the case unresolved.",
+        "remaining": [
+          "The responsible operator and exact approval scope",
+          "Independent records of activity during the session"
+        ],
+        "next": "Request help-desk ownership and endpoint audit evidence for the session interval.",
+        "pitfall": "Session duration alone cannot show what the operator did."
+      }
+    ],
+    "challenge": "What must a prompt require before it can describe this remote session as authorized?",
+    "debriefPrinciple": "Tool legitimacy and session authorization are separate questions."
+  },
+  {
+    "id": "sys-edr-gap",
+    "category": "Endpoint & network",
+    "title": "Endpoint telemetry goes silent",
+    "assetType": "endpoint monitoring coverage",
+    "brief": "Separate evidence of a collection gap from evidence of deliberate monitoring interference.",
+    "context": "{{org}} notices a monitoring gap for {{host}}. Its last events and later heartbeat are visible, but the cause is not yet established.",
+    "initial": [
+      {
+        "source": "Collection monitor",
+        "text": "At {{time}}, {{host}} stopped sending detailed endpoint events."
+      },
+      {
+        "source": "Health telemetry",
+        "text": "A later heartbeat at {{later}} shows the device was reachable through a management channel."
+      },
+      {
+        "source": "Incident bundle",
+        "text": "The gap covers activity associated with {{user}}. The initial bundle contains no service-control, network-path, or maintenance records."
+      }
+    ],
+    "unknowns": [
+      "Whether the sensor stopped or its delivery path failed",
+      "Whether maintenance was approved for this host",
+      "What relevant activity occurred during the gap"
+    ],
+    "hypotheses": [
+      "An approved sensor upgrade or restart caused the gap",
+      "A network or collection fault interrupted delivery",
+      "An actor interfered with monitoring"
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read maintenance and sensor state",
+        "purpose": "Check host-specific maintenance, sensor version transitions, and service events.",
+        "tool": "read_sensor_context",
+        "scope": "{{host}} across the telemetry gap"
+      },
+      {
+        "id": "activity",
+        "label": "Read independent delivery and activity records",
+        "purpose": "Correlate collector status with independent endpoint or network logs.",
+        "tool": "read_monitoring_gap_activity",
+        "scope": "{{host}} and the same gap interval"
+      },
+      {
+        "id": "background",
+        "label": "Read overall fleet health",
+        "purpose": "Compare general sensor health without attributing this host's gap.",
+        "tool": "read_fleet_sensor_health",
+        "scope": "Aggregate sensor availability"
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Change {{ticket}} schedules a sensor upgrade for {{host}}. Service-control records show the expected installer stopping and restarting the sensor.",
+          "The collector received the documented reconnect sequence, and retained events resumed under the expected sensor version. Independent logs show the approved installer activity in the interval.",
+          "Fleet-wide sensor availability remained high. That aggregate does not explain a particular device's missing events."
+        ],
+        "reasoning": "The host-specific upgrade record and correlated restart evidence support an expected maintenance gap.",
+        "remaining": [
+          "Whether all buffered events were recovered",
+          "Whether the gap exceeded the approved duration"
+        ],
+        "next": "Document the maintenance match and verify the collection backlog through normal monitoring follow-up.",
+        "pitfall": "An expected restart does not automatically mean every event was recovered."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "There is no approved sensor change for {{host}}. Service events show an unexpected administrative identity modifying the sensor's startup configuration.",
+          "Independent audit records show the same identity deleting local monitoring logs during the gap. Detailed collection remains impaired afterward.",
+          "Fleet-wide sensor availability remained high. That aggregate does not explain a particular device's missing events."
+        ],
+        "reasoning": "Unapproved sensor-configuration changes and correlated log deletion support escalation of possible monitoring interference.",
+        "remaining": [
+          "How the administrative identity obtained access",
+          "Which activities may be absent from the retained logs"
+        ],
+        "next": "Preserve independent audit records and escalate for the established endpoint investigation process.",
+        "pitfall": "Missing telemetry cannot reveal all of the activity that occurred while it was missing."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "Service-control records for the interval were not retained. The last known sensor version does not establish its state during the gap.",
+          "The collector reports transient delivery errors affecting several endpoints, but no device-specific delivery trace exists for {{host}}.",
+          "Fleet-wide sensor availability remained high. That aggregate does not explain a particular device's missing events."
+        ],
+        "reasoning": "A delivery fault is plausible, but the records cannot attribute this host's gap or exclude local sensor interruption.",
+        "remaining": [
+          "Device-specific service state during the gap",
+          "A correlated delivery-path record"
+        ],
+        "next": "Request independent device and collector evidence; report the confirmed visibility gap without assigning intent.",
+        "pitfall": "A fleet incident can be relevant context without proving this device had the same cause."
+      }
+    ],
+    "challenge": "How would you prevent an assistant from filling a telemetry gap with invented attacker actions?",
+    "debriefPrinciple": "A visibility gap is an observation; the cause and hidden activity require separate evidence."
+  },
+  {
+    "id": "sys-periodic-dns",
+    "category": "Endpoint & network",
+    "title": "A workstation resolves a domain at regular intervals",
+    "assetType": "DNS activity",
+    "brief": "Assess recurring DNS requests using process attribution and response context.",
+    "context": "{{org}} observes a recurring lookup pattern from {{host}}. Regular timing is the trigger, while the purpose of the queries remains unknown.",
+    "initial": [
+      {
+        "source": "DNS resolver",
+        "text": "Starting at {{time}}, {{host}} made repeated queries for {{domain}} at roughly regular intervals."
+      },
+      {
+        "source": "Endpoint association",
+        "text": "The host is assigned to {{user}}, but the initial DNS records do not identify the requesting process."
+      },
+      {
+        "source": "Alert summary",
+        "text": "The detector describes the pattern as possible beaconing. Response content and subsequent connections are absent."
+      }
+    ],
+    "unknowns": [
+      "Which process generated the requests",
+      "Whether the domain belongs to an expected service",
+      "Whether the requests led to other meaningful activity"
+    ],
+    "hypotheses": [
+      "An application polls an expected service",
+      "Unauthorized software contacts external infrastructure",
+      "A failing service retries DNS without completing connections"
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read process and service attribution",
+        "purpose": "Associate the queries with a process and the configured service endpoint.",
+        "tool": "read_dns_process_context",
+        "scope": "{{host}}, {{domain}}, and the alert interval"
+      },
+      {
+        "id": "activity",
+        "label": "Read responses and correlated connections",
+        "purpose": "Inspect returned answers and subsequent recorded sessions.",
+        "tool": "read_dns_followup_activity",
+        "scope": "Queries for {{domain}} from {{host}}"
+      },
+      {
+        "id": "background",
+        "label": "Read the total DNS request volume",
+        "purpose": "Provide aggregate volume, which does not establish this domain's purpose.",
+        "tool": "read_dns_volume",
+        "scope": "Aggregate resolver query counts"
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Endpoint correlation attributes the requests to the managed monitoring client. Its approved configuration lists {{domain}} as its update-status endpoint.",
+          "Responses and connections match the client's documented polling behavior. The retained sessions transfer its expected status payload within the configured destination scope.",
+          "Resolver traffic varies by hour across the fleet. Total query volume does not identify the purpose of this sequence."
+        ],
+        "reasoning": "The process/configuration match and expected follow-up sessions support the monitoring-client explanation.",
+        "remaining": [
+          "Whether the client configuration was recently changed through the approved process",
+          "Whether any other process used the same domain"
+        ],
+        "next": "Record the process and configuration references and assess separate callers independently.",
+        "pitfall": "Regular timing alone does not establish command-and-control activity."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "Queries correlate to an unrecognized process launched from a user-writable staging directory. No installed application's approved configuration accounts for {{domain}}.",
+          "The process repeatedly establishes outbound sessions after resolution and reads application credential stores beforehand. Those correlated actions are outside the host's documented tasks.",
+          "Resolver traffic varies by hour across the fleet. Total query volume does not identify the purpose of this sequence."
+        ],
+        "reasoning": "Unexplained process attribution and correlated credential-store access support escalation of the recurring network activity. DNS timing alone would not support that conclusion.",
+        "remaining": [
+          "The process origin and complete behavior",
+          "Whether sensitive content was carried in the sessions"
+        ],
+        "next": "Request authorized process analysis and session metadata while preserving the DNS-to-process correlation.",
+        "pitfall": "DNS resolution and outbound sessions do not prove what data was transmitted."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "Process-level DNS attribution is unavailable, and several local applications are configured to use shared resolver services.",
+          "Responses show intermittent failures, but the available connection logs are sampled and cannot establish whether a related session followed each query.",
+          "Resolver traffic varies by hour across the fleet. Total query volume does not identify the purpose of this sequence."
+        ],
+        "reasoning": "The pattern is confirmed, but process attribution and follow-up activity remain insufficient to distinguish polling, retries, or unauthorized communication.",
+        "remaining": [
+          "A reliable requesting-process association",
+          "Unsampled follow-up connection records"
+        ],
+        "next": "Seek process-level or endpoint network evidence for a bounded time window.",
+        "pitfall": "A sampled log without a matching connection is not proof that no connection occurred."
+      }
+    ],
+    "challenge": "Which next check adds more value: another description of the timing pattern, or process attribution?",
+    "debriefPrinciple": "Correlate network patterns with their source and consequences before assigning intent."
+  },
+  {
+    "id": "sys-outbound-spike",
+    "category": "Endpoint & network",
+    "title": "An endpoint uploads much more than usual",
+    "assetType": "endpoint network transfer",
+    "brief": "Assess an outbound data-volume anomaly while distinguishing transfer volume, content, destination, and authorization.",
+    "context": "{{org}} detects an outbound spike from {{host}}. A larger transfer is established, but the initial alert does not classify its content or destination ownership.",
+    "initial": [
+      {
+        "source": "Network monitor",
+        "text": "At {{time}}, outbound transfer volume from {{host}} exceeded its recent baseline."
+      },
+      {
+        "source": "Session metadata",
+        "text": "The largest recorded flow originates from session {{session}} associated with {{user}} and reaches {{ip}}."
+      },
+      {
+        "source": "Collection limit",
+        "text": "The initial flow records contain byte counts and addresses, not file contents, destination ownership, or a matching business task."
+      }
+    ],
+    "unknowns": [
+      "Which process and files contributed to the flow",
+      "Who controls the destination",
+      "Whether the transfer was authorized and completed"
+    ],
+    "hypotheses": [
+      "An approved backup or dataset transfer increased volume",
+      "An application retry or duplication inflated the volume",
+      "Sensitive files were transferred outside approved scope"
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read process and destination context",
+        "purpose": "Identify the transfer client, configured endpoint, and matching task approval.",
+        "tool": "read_transfer_context",
+        "scope": "The largest flow from {{host}} in {{session}}"
+      },
+      {
+        "id": "activity",
+        "label": "Read correlated file and completion records",
+        "purpose": "Check what source files were read and what completion evidence exists.",
+        "tool": "read_transfer_activity",
+        "scope": "The same transfer task and source paths"
+      },
+      {
+        "id": "background",
+        "label": "Read link-capacity metrics",
+        "purpose": "Check bandwidth utilization without treating it as content or authorization evidence.",
+        "tool": "read_link_utilization",
+        "scope": "Aggregate uplink utilization"
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The flow belongs to the approved backup client, and the destination address maps to its configured backup service. Task {{ticket}} authorizes an initial full backup.",
+          "File-access records match the approved backup paths. The service receipt records completion of that backup task with the expected task identifier.",
+          "The uplink had sufficient capacity for the transfer. Capacity does not identify the files or their authorization."
+        ],
+        "reasoning": "A matched backup task, scoped file reads, and a correlated receipt support the planned full-backup explanation.",
+        "remaining": [
+          "Whether every backed-up path was included in the approval",
+          "Whether other large flows had a different source"
+        ],
+        "next": "Document the initial-backup context and review any unmatched flows separately.",
+        "pitfall": "A familiar destination cannot by itself authorize every transfer to it."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The transfer uses an unapproved client and an endpoint absent from the configured business destinations. No change record covers the task.",
+          "The correlated process reads restricted export files, and a transfer-completion record names the same export bundle. The destination remains outside approved scope.",
+          "The uplink had sufficient capacity for the transfer. Capacity does not identify the files or their authorization."
+        ],
+        "reasoning": "The restricted-file correlation and completed out-of-scope transfer support escalation of a potential data disclosure. Destination ownership still requires verification.",
+        "remaining": [
+          "Who controls the destination",
+          "The exact sensitivity and scope of the completed bundle"
+        ],
+        "next": "Escalate with the correlated file and completion records; request classification and destination-ownership evidence.",
+        "pitfall": "Large byte counts alone cannot establish that sensitive information was exported."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "A shared proxy obscures the ultimate destination, and process attribution is missing for the largest flow.",
+          "The retained file log covers a different session, so its export-file reads cannot be assigned to this transfer.",
+          "The uplink had sufficient capacity for the transfer. Capacity does not identify the files or their authorization."
+        ],
+        "reasoning": "An outbound spike is confirmed, but its process, content, and ultimate destination are unresolved. Unrelated file reads cannot fill those gaps.",
+        "remaining": [
+          "Correctly correlated file-access records",
+          "The ultimate destination behind the proxy"
+        ],
+        "next": "Request the relevant proxy transaction and endpoint session records.",
+        "pitfall": "Matching timestamps alone are insufficient when the session identifiers differ."
+      }
+    ],
+    "challenge": "Which parts of an exfiltration claim are absent from byte-count evidence alone?",
+    "debriefPrinciple": "A transfer's size, content, destination, and authorization each need evidence."
+  },
+  {
+    "id": "sys-internal-scan",
+    "category": "Endpoint & network",
+    "title": "One host touches many internal services",
+    "assetType": "internal network connections",
+    "brief": "Determine whether a broad internal connection pattern fits authorized inventory activity or warrants escalation.",
+    "context": "{{org}} observes {{host}} connecting to many internal destinations. The detector's scan label describes the connection pattern, not the operator's authorization.",
+    "initial": [
+      {
+        "source": "Network sensor",
+        "text": "At {{time}}, {{host}} attempted connections to {{count}} internal service endpoints in a short interval."
+      },
+      {
+        "source": "Host identity",
+        "text": "The source address is associated with {{host}} and the user context {{user}}."
+      },
+      {
+        "source": "Alert context",
+        "text": "The initial bundle lacks process attribution, scan authorization, and the results of those connection attempts."
+      }
+    ],
+    "unknowns": [
+      "Whether the source is an authorized assessment or inventory host",
+      "Whether the observed destinations match approved scope",
+      "What happened after the connection attempts"
+    ],
+    "hypotheses": [
+      "An approved inventory or assessment task enumerated services",
+      "A misconfigured application tried many obsolete endpoints",
+      "An unauthorized actor explored internal services"
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read inventory-task authorization",
+        "purpose": "Compare source, operator, destination scope, and time with an approved job.",
+        "tool": "read_scan_scope_context",
+        "scope": "{{host}} and the observed destination set"
+      },
+      {
+        "id": "activity",
+        "label": "Read correlated connection and authentication outcomes",
+        "purpose": "Inspect outcomes and follow-on activity for the same source process.",
+        "tool": "read_scan_followup",
+        "scope": "The connection sequence beginning at {{time}}"
+      },
+      {
+        "id": "background",
+        "label": "Read overall network-host counts",
+        "purpose": "Learn fleet scale without determining this activity's authorization.",
+        "tool": "read_network_inventory_counts",
+        "scope": "Aggregate internal asset counts"
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Inventory job {{ticket}} names {{host}}, the task identity, the exact destination ranges, and this time window.",
+          "The source process matches the inventory agent. Recorded sessions are limited to documented service-identification checks, with no out-of-scope destinations in the retained trace.",
+          "The organization has many internal assets. Asset count alone does not authorize this source to contact them."
+        ],
+        "reasoning": "The exact job scope and expected recorded behavior support authorized inventory activity for the observed sequence.",
+        "remaining": [
+          "Whether the trace captures the entire job",
+          "Whether later activity remained within scope"
+        ],
+        "next": "Record the scope match and review any out-of-scope destinations or follow-on actions separately.",
+        "pitfall": "An approved scan somewhere in the network does not authorize every scan."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The authorized inventory job runs from another source, and {{host}} is not included in its approved source list.",
+          "Several connections are followed by repeated authentication attempts under unexpected accounts from the same process. These events are absent from any matching assessment record.",
+          "The organization has many internal assets. Asset count alone does not authorize this source to contact them."
+        ],
+        "reasoning": "An unapproved source and correlated authentication attempts support escalation of possible internal reconnaissance or access attempts.",
+        "remaining": [
+          "Whether any authentication succeeded",
+          "How the source process was launched"
+        ],
+        "next": "Request process-origin and authentication-outcome records for the same session.",
+        "pitfall": "Connection attempts and authentication attempts do not establish successful access."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The scan calendar records only a broad network assessment window. It omits authorized source hosts and destination ranges.",
+          "Network translation and incomplete process logs prevent reliable correlation of the observed attempts with a single process.",
+          "The organization has many internal assets. Asset count alone does not authorize this source to contact them."
+        ],
+        "reasoning": "The connection pattern is established, but exact authorization and process attribution are unresolved.",
+        "remaining": [
+          "A precise assessment scope",
+          "Reliable source-process correlation"
+        ],
+        "next": "Ask for the assessment authorization record and correctly correlated network metadata.",
+        "pitfall": "A broad assessment window is context, not a substitute for exact scope."
+      }
+    ],
+    "challenge": "How would you phrase an authorization check so the assistant must match both source and destination scope?",
+    "debriefPrinciple": "For security testing and inventory jobs, authorization must match the actual activity."
+  },
+  {
+    "id": "app-web-injection",
+    "category": "Application & data",
+    "title": "A web request triggers an injection alert",
+    "assetType": "Internal web application",
+    "brief": "Decide what an injection-pattern alert establishes about application behavior.",
+    "context": "At {{org}}, a detection rule flags a request to a search endpoint. A security test window overlaps with ordinary use; the initial alert does not link the request to a test or show how the application constructed its database query.",
+    "initial": [
+      {
+        "source": "Web gateway",
+        "text": "At {{time}}, the search endpoint received input matching an injection-oriented detection pattern from {{ip}}."
+      },
+      {
+        "source": "Application request log",
+        "text": "The request has correlation value {{session}} and an HTTP success status; the response content is not included."
+      },
+      {
+        "source": "Service ownership",
+        "text": "The endpoint reads a reporting database. The alert omits the deployed handler version and any database trace."
+      }
+    ],
+    "unknowns": [
+      "Which handler and query-construction path processed the request?",
+      "Was this request an authorized recorded test or ordinary traffic?",
+      "Did the input change query behavior or expose unexpected data?"
+    ],
+    "hypotheses": [
+      "An authorized test was safely handled as data by a parameterized query.",
+      "A deployed query-construction defect allowed input to alter database behavior.",
+      "The gateway and application records cannot yet be tied to the relevant database operation."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read handler and request provenance",
+        "purpose": "Identify the deployed binding logic and the exact request's origin.",
+        "tool": "read_query_handler_context",
+        "scope": "Deployed search handler, binding helper, and test registry for {{session}} only."
+      },
+      {
+        "id": "activity",
+        "label": "Read correlated database and test results",
+        "purpose": "Determine the observed query behavior and response scope.",
+        "tool": "read_recorded_query_results",
+        "scope": "Existing database traces and recorded authorized test results tied to {{session}}; execute nothing."
+      },
+      {
+        "id": "background",
+        "label": "Read endpoint traffic baseline",
+        "purpose": "Establish how commonly the endpoint is used without treating popularity as validation.",
+        "tool": "read_endpoint_baseline",
+        "scope": "Aggregate search request counts and status rates for the same endpoint."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The deployed handler uses bound parameters through the inspected helper. The test registry matches {{session}} to an approved exercise under {{ticket}}.",
+          "The correlated trace keeps the test input within one parameter, and the retained response contains only the expected search results. The recorded test did not demonstrate a changed query structure.",
+          "The endpoint regularly returns HTTP success statuses for both empty and populated searches. That status alone says nothing about injection resistance."
+        ],
+        "reasoning": "The inspected path and matching observed trace support safe handling of this recorded request. They do not establish that every endpoint or untested input is safe.",
+        "remaining": [
+          "Whether other query paths use the same binding approach.",
+          "Whether coverage includes alternate request formats."
+        ],
+        "next": "Record the bounded finding and have the application owner review coverage for other query paths.",
+        "pitfall": "Treating an HTTP success status as proof that the injection succeeded."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The deployed handler appends an input-derived fragment outside the binding helper. The test registry identifies {{session}} as an approved security test, not an incident attribution record.",
+          "The retained test trace shows that the input changed the query structure, and its recorded response contains rows outside the test's expected search scope.",
+          "The endpoint regularly returns HTTP success statuses for both empty and populated searches. That status alone says nothing about injection resistance."
+        ],
+        "reasoning": "The inspected construction defect and corresponding recorded behavior support a query-injection finding on this path. The records demonstrate a weakness during authorized testing, not exploitation by an unknown attacker.",
+        "remaining": [
+          "Which deployed endpoints share the affected construction helper.",
+          "Whether historical requests produced comparable out-of-scope results."
+        ],
+        "next": "Escalate the verified finding to the application owner with the retained trace and request a scoped remediation review.",
+        "pitfall": "Converting a confirmed test weakness into an unsupported claim of attacker compromise."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The handler calls a query helper whose deployed source is missing from the retained bundle. The test registry lacks a correlation value matching {{session}}.",
+          "The database trace was sampled out, and the retained test report covers a different handler version. Only the HTTP status can be matched to this request.",
+          "The endpoint regularly returns HTTP success statuses for both empty and populated searches. That status alone says nothing about injection resistance."
+        ],
+        "reasoning": "The detection pattern identifies a question to investigate, but the missing deployed helper and query trace prevent a supported conclusion about query behavior.",
+        "remaining": [
+          "The exact helper implementation deployed at the time.",
+          "The query and response associated with the flagged request."
+        ],
+        "next": "Request the missing deployed helper and any retained correlated database evidence; keep the disposition unresolved.",
+        "pitfall": "Using a test from another build to fill an evidence gap in this one."
+      }
+    ],
+    "challenge": "Write a prompt that separates attempted input, query construction, and observed result. Require a bounded conclusion with a missing-evidence field.",
+    "debriefPrinciple": "A detector describes a pattern; query and response evidence establish what the application actually did."
+  },
+  {
+    "id": "app-reset-token-review",
+    "category": "Application & data",
+    "title": "A reset-token review raises a reuse concern",
+    "assetType": "Account recovery service",
+    "brief": "Evaluate whether a password-reset token is actually enforced as single use.",
+    "context": "The identity team at {{org}} is reviewing an account-recovery change before a wider rollout. A scanner reports a possible token-reuse issue, but the excerpt contains only the request handler, not the storage transaction or retained integration-test results.",
+    "initial": [
+      {
+        "source": "Code scanner",
+        "text": "The reset handler looks up a token and later updates account state; the scanner labels the separation a possible reuse risk."
+      },
+      {
+        "source": "Change record",
+        "text": "{{ticket}} includes a recovery-service update. Its summary does not state the atomicity or expiry guarantees."
+      },
+      {
+        "source": "Review excerpt",
+        "text": "The token-consumption storage helper and the existing replay-test report are referenced but not present in the excerpt."
+      }
+    ],
+    "unknowns": [
+      "Is token validity checked and consumed atomically with the account update?",
+      "Are expiry and account binding enforced by the deployed helper?",
+      "What do recorded replay and concurrency tests actually show?"
+    ],
+    "hypotheses": [
+      "The omitted storage helper enforces valid, single-use tokens atomically.",
+      "The deployed flow permits the same valid token to authorize more than one account change.",
+      "The available code and tests are insufficient to assess token lifecycle behavior."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read token lifecycle implementation",
+        "purpose": "Inspect the deployed validity, binding, expiry, and consumption transaction.",
+        "tool": "read_reset_lifecycle",
+        "scope": "Recovery handler and its deployed storage helper for the reviewed build."
+      },
+      {
+        "id": "activity",
+        "label": "Read recorded lifecycle tests",
+        "purpose": "Compare the code claim with already-run replay and concurrency checks.",
+        "tool": "read_reset_test_report",
+        "scope": "Retained authorized test results and build identifiers only; do not issue reset requests."
+      },
+      {
+        "id": "background",
+        "label": "Read recovery volume",
+        "purpose": "Add operational context without substituting it for token lifecycle evidence.",
+        "tool": "read_recovery_metrics",
+        "scope": "Aggregate reset request and completion counts without tokens or user secrets."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The deployed helper checks the intended account and expiry, then consumes the token within the same transaction as the account change. A second use cannot satisfy the conditional update.",
+          "The retained report matches the build: the first authorized test completed, subsequent replay was rejected, and concurrent attempts produced exactly one successful account update.",
+          "Recovery completion rates are close to the previous release. Aggregate success rates do not reveal whether a particular token can be reused."
+        ],
+        "reasoning": "The transaction logic and matching recorded tests support single-use enforcement for the reviewed flow. The finding is limited to the paths and conditions covered.",
+        "remaining": [
+          "Whether alternate recovery endpoints call the same helper.",
+          "Whether error and rollback paths have equivalent test coverage."
+        ],
+        "next": "Document the implementation and test linkage, then ask the reviewer to confirm coverage of alternate recovery paths.",
+        "pitfall": "Declaring a defect from a handler excerpt without inspecting the enforcing helper."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The deployed helper reads token validity separately from the account update and marks consumption only afterward. No atomic condition prevents a second accepted use.",
+          "The matching retained concurrency report records two successful account updates authorized by the same test token; the expected single-success assertion failed.",
+          "Recovery completion rates are close to the previous release. Aggregate success rates do not reveal whether a particular token can be reused."
+        ],
+        "reasoning": "The implementation and failed recorded test support a token-reuse defect in the reviewed build. They do not show that a real account has been compromised.",
+        "remaining": [
+          "Whether the affected build is active on every recovery-service instance.",
+          "Whether retained production audit events show repeated acceptance of one token identifier."
+        ],
+        "next": "Give the owning team the failed test and transaction finding for remediation review; request read-only deployment and audit checks.",
+        "pitfall": "Treating a code weakness as evidence that someone has already abused it."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The handler delegates consumption to a storage service whose deployed transaction definition is unavailable. The change description claims single use but does not document how.",
+          "The retained replay report belongs to an older build, and the current concurrency test was skipped after an infrastructure error.",
+          "Recovery completion rates are close to the previous release. Aggregate success rates do not reveal whether a particular token can be reused."
+        ],
+        "reasoning": "Neither the lifecycle enforcement nor a matching behavioral test is available, so the scanner concern remains unresolved.",
+        "remaining": [
+          "The storage transaction used by the reviewed build.",
+          "A valid recorded test result for the current build."
+        ],
+        "next": "Request the missing implementation and current test evidence from the owning team without treating the skipped test as a pass.",
+        "pitfall": "Counting an unexecuted or mismatched test as evidence of protection."
+      }
+    ],
+    "challenge": "Build a review prompt that cites the enforcing component and matching build evidence. Set a stop condition for missing implementation or skipped tests.",
+    "debriefPrinciple": "Security properties depend on the complete state transition, not only the visible request handler."
+  },
+  {
+    "id": "app-upload-validation",
+    "category": "Application & data",
+    "title": "A file upload passes the first gate",
+    "assetType": "Document upload service",
+    "brief": "Determine what an accepted upload says about validation and later handling.",
+    "context": "{{org}} operates a document portal with an upload gateway, a content validator, and separate storage delivery. An alert says an unusual file was accepted at the gateway; the initial record does not show whether validation later rejected it or how the object was served.",
+    "initial": [
+      {
+        "source": "Upload gateway",
+        "text": "At {{time}}, an unusual file name and declared type were accepted for temporary processing under {{session}}."
+      },
+      {
+        "source": "Portal log",
+        "text": "A temporary object identifier was created. A final validation decision is not included in this log."
+      },
+      {
+        "source": "Architecture inventory",
+        "text": "The portal has separate upload and download handlers; their deployed validation and response configuration is omitted."
+      }
+    ],
+    "unknowns": [
+      "Was acceptance provisional or final?",
+      "What did the deployed validator determine about the actual content?",
+      "Could the stored object be served with an active content type or executable handling?"
+    ],
+    "hypotheses": [
+      "The staging step accepted the object temporarily and downstream controls rejected or safely isolated it.",
+      "The deployed validation and delivery path allowed disallowed active content to be published.",
+      "The downstream decision or storage delivery configuration is not recorded."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read validation and delivery configuration",
+        "purpose": "Identify the rules that govern final acceptance and served content.",
+        "tool": "read_upload_controls",
+        "scope": "Deployed validator, finalization handler, and storage delivery configuration for this portal."
+      },
+      {
+        "id": "activity",
+        "label": "Read recorded object handling",
+        "purpose": "Trace the existing test object's validation result and delivered response.",
+        "tool": "read_upload_test_trace",
+        "scope": "Retained authorized upload-test trace for {{session}}, including final object status and response headers; no new uploads."
+      },
+      {
+        "id": "background",
+        "label": "Read storage utilization",
+        "purpose": "Check operating context without inferring content safety from capacity.",
+        "tool": "read_upload_storage_metrics",
+        "scope": "Aggregate upload counts and storage utilization for the portal."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Temporary acceptance is explicitly separated from publication. The validator checks content against the allowed document formats, and the download path forces attachments from isolated storage.",
+          "The matching recorded test marks the object rejected after content inspection; no published object or download response was created for it.",
+          "Storage utilization is within its usual range. Available capacity does not establish whether an individual upload is safe."
+        ],
+        "reasoning": "The configuration and trace support that this unusual upload stopped at validation and was not published through the reviewed path.",
+        "remaining": [
+          "Whether all upload entry points use the same finalization control.",
+          "Whether previously published objects were validated under the same rules."
+        ],
+        "next": "Record the staged-versus-published distinction and review coverage of alternate upload paths with the service owner.",
+        "pitfall": "Treating a temporary object identifier as proof that unsafe content was made available."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The deployed validator relies on declared type, and the download handler serves accepted objects inline from the portal's application origin. The approved policy requires content validation and isolated attachment delivery.",
+          "The matching retained authorized test shows disallowed active content marked valid and delivered inline with an active content type. Its policy assertion failed.",
+          "Storage utilization is within its usual range. Available capacity does not establish whether an individual upload is safe."
+        ],
+        "reasoning": "The deployed controls and observed delivery support a validation and content-isolation weakness. The trace does not establish that an actual user opened the object or suffered an account impact.",
+        "remaining": [
+          "Which deployed upload routes share these controls.",
+          "Whether any real users received similarly published objects."
+        ],
+        "next": "Escalate the recorded policy failure to the portal owner and request a bounded review of affected routes and publication history.",
+        "pitfall": "Equating an unsafe delivery path with proven execution in a user's browser."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The available configuration describes the upload gateway, but the deployed validator version and download response policy are absent.",
+          "The retained trace ends at temporary object creation. The finalization log expired, and the download test covers a different object.",
+          "Storage utilization is within its usual range. Available capacity does not establish whether an individual upload is safe."
+        ],
+        "reasoning": "The gateway acceptance is real, but neither final validation nor delivery is established for this object.",
+        "remaining": [
+          "The final status of the staged object.",
+          "The effective validation and download configuration at that time."
+        ],
+        "next": "Request retained object metadata and the deployed downstream configuration; leave publication and impact unproven.",
+        "pitfall": "Inferring final publication from the first step of a multi-stage workflow."
+      }
+    ],
+    "challenge": "Make the model draw the upload states and label the observed state. Ask which single missing transition would most improve the conclusion.",
+    "debriefPrinciple": "Track staging, validation, publication, and delivery separately; each transition needs its own evidence."
+  },
+  {
+    "id": "app-object-authorization",
+    "category": "Application & data",
+    "title": "An account requests another object's identifier",
+    "assetType": "Multi-tenant application API",
+    "brief": "Check whether object access was authorized, regardless of identifier predictability.",
+    "context": "The API team at {{org}} is reviewing an object-access alert. A request supplied an identifier associated with a different customer workspace, but the initial event lacks the effective permission decision and response body.",
+    "initial": [
+      {
+        "source": "API gateway",
+        "text": "At {{time}}, a request under {{session}} targeted an object identifier associated with a different workspace in the alert index."
+      },
+      {
+        "source": "Access summary",
+        "text": "The request used a valid signed-in session. The index does not list delegated roles or shared-object grants."
+      },
+      {
+        "source": "Response metadata",
+        "text": "An HTTP success status was recorded, but the body and backend authorization trace are absent."
+      }
+    ],
+    "unknowns": [
+      "What permissions did the effective principal have on that exact object?",
+      "Did the backend return object data, a denial envelope, or an empty result?",
+      "Did the retained test cover the same route and authorization configuration?"
+    ],
+    "hypotheses": [
+      "The requester had an explicit valid grant, or the backend returned a denial without data.",
+      "The backend returned another workspace's object without a matching grant.",
+      "The principal, resource, and response cannot be correlated well enough to assess access."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read effective object permissions",
+        "purpose": "Match principal, route, resource, and any delegation to the access policy.",
+        "tool": "read_object_auth_context",
+        "scope": "Effective identity and grants for {{session}} and the requested object; no broader customer data."
+      },
+      {
+        "id": "activity",
+        "label": "Read authorization and response trace",
+        "purpose": "Check the actual decision and data boundary in retained audit or authorized tests.",
+        "tool": "read_object_access_trace",
+        "scope": "Recorded backend decision, response field summary, and matching-build authorization test results."
+      },
+      {
+        "id": "background",
+        "label": "Read API latency baseline",
+        "purpose": "Provide service context without using performance as authorization evidence.",
+        "tool": "read_api_latency",
+        "scope": "Aggregate latency and error-rate summary for the route."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The effective principal has no cross-workspace grant, and the deployed route applies a resource-level ownership check after authentication.",
+          "The correlated backend trace records a denial and no object fields. This API uses an HTTP success envelope for that denial; a matching recorded authorization test also rejects the same cross-workspace relation.",
+          "The route's median latency is typical. Response speed does not show whether access was authorized."
+        ],
+        "reasoning": "The effective policy and observed no-data denial support enforcement for this request despite its HTTP status. The finding does not certify other routes.",
+        "remaining": [
+          "Whether other object endpoints enforce equivalent checks.",
+          "Whether clients correctly distinguish the denial envelope from a successful data response."
+        ],
+        "next": "Document the backend decision and response semantics, then review equivalent checks on related object endpoints.",
+        "pitfall": "Using authentication or an HTTP status as a substitute for object-level authorization."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The effective principal has no ownership, delegation, or sharing grant for the requested object. The deployed handler checks authentication but omits the object-level policy call.",
+          "The correlated trace records returned object fields from the other workspace. A retained authorized regression test on this build reproduces the same missing authorization boundary.",
+          "The route's median latency is typical. Response speed does not show whether access was authorized."
+        ],
+        "reasoning": "The absent grant and observed cross-workspace data return support an object-authorization defect on this route. The evidence does not quantify access through other routes or accounts.",
+        "remaining": [
+          "How many deployed routes reuse the affected handler.",
+          "Whether retained audit data bounds any earlier unauthorized returns."
+        ],
+        "next": "Escalate the verified boundary failure with the minimal field summary and request a scoped impact review.",
+        "pitfall": "Assuming that an opaque or hard-to-guess identifier provides an authorization control."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The session was mediated by a shared service account, and the retained trace omits the original requesting principal. The object's historical sharing grants are unavailable.",
+          "The response body summary was not retained, and the regression test uses a different route. The success status cannot distinguish a denial envelope from data.",
+          "The route's median latency is typical. Response speed does not show whether access was authorized."
+        ],
+        "reasoning": "The records do not establish the effective permission relationship or whether object data was returned, so neither authorization success nor failure is supported.",
+        "remaining": [
+          "The original effective principal and historical grants.",
+          "A correlated backend decision or response field summary."
+        ],
+        "next": "Request the missing delegation and response records; avoid assigning intent or impact from the identifier alone.",
+        "pitfall": "Treating a cross-workspace identifier as conclusive evidence of unauthorized disclosure."
+      }
+    ],
+    "challenge": "Create a prompt with separate fields for authentication, resource permission, and observed data return. Decide what missing link should stop the loop.",
+    "debriefPrinciple": "A valid session answers who is signed in; object authorization answers what that principal may access."
+  },
+  {
+    "id": "app-dependency-change",
+    "category": "Application & data",
+    "title": "A dependency digest changes during a build",
+    "assetType": "Application dependency pipeline",
+    "brief": "Distinguish an approved dependency update from an unexplained build input.",
+    "context": "A dependency alert in {{org}} reports a package digest that differs from the previous release. Package versions, registry responses, lockfiles, and install-time activity can all change independently; the first alert does not connect them.",
+    "initial": [
+      {
+        "source": "Build manifest",
+        "text": "A dependency digest in the current build differs from the previous release for the same application."
+      },
+      {
+        "source": "Change calendar",
+        "text": "{{ticket}} covers application maintenance, but the alert does not include its approved dependency manifest."
+      },
+      {
+        "source": "Pipeline summary",
+        "text": "Dependency installation completed. The summary omits package provenance, install-step behavior, and the exact resolved source."
+      }
+    ],
+    "unknowns": [
+      "Does the resolved package match an approved reviewed manifest?",
+      "Does the verified package provenance explain the digest change?",
+      "What did the recorded install step actually do?"
+    ],
+    "hypotheses": [
+      "An approved dependency update changed the package digest as expected.",
+      "An unreviewed or substituted dependency introduced unexpected install-time activity.",
+      "Incomplete provenance and install logs prevent assessment of the new build input."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read dependency approval and provenance",
+        "purpose": "Compare exact package version, source, and digest with reviewed inputs.",
+        "tool": "read_dependency_provenance",
+        "scope": "Approved manifest, committed lockfile, and retained verified registry provenance for this build."
+      },
+      {
+        "id": "activity",
+        "label": "Read recorded install activity",
+        "purpose": "Determine whether the package's install step matched the reviewed behavior.",
+        "tool": "read_dependency_install_trace",
+        "scope": "Existing build sandbox process, file, and egress records for the dependency installation only."
+      },
+      {
+        "id": "background",
+        "label": "Read package adoption counts",
+        "purpose": "Add dependency context without treating popularity as proof of integrity.",
+        "tool": "read_dependency_inventory",
+        "scope": "Counts of internal projects declaring this package name."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The approved manifest in {{ticket}} specifies this new version and exact digest. The committed lockfile and retained verified package source both match.",
+          "The recorded install activity matches the reviewed build-generation step and writes only expected generated files. The retained sandbox trace shows no other activity in its collection window.",
+          "Several internal projects declare the package name. Adoption counts do not authenticate this particular package archive."
+        ],
+        "reasoning": "The exact input matches the reviewed update, and observed installation behavior fits that change. This supports the bounded build finding without proving the dependency free of all defects.",
+        "remaining": [
+          "Whether runtime behavior is covered by separate application tests.",
+          "Whether all release jobs use this same committed lockfile."
+        ],
+        "next": "Record the manifest, digest, and observed install linkage; leave runtime assurance to the relevant recorded tests.",
+        "pitfall": "Treating every changed digest as malicious or every popular dependency as trustworthy."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The resolved digest and source do not match the approved manifest. The build used an unreviewed lockfile modification after the review checkpoint.",
+          "The installation trace shows an added step reading build credential configuration and attempting an outbound connection unrelated to the reviewed build task. The trace does not show whether any secret was transferred.",
+          "Several internal projects declare the package name. Adoption counts do not authenticate this particular package archive."
+        ],
+        "reasoning": "The unauthorized input change and unexpected credential-related install behavior support escalation of this build. They do not establish transfer success or attribution.",
+        "remaining": [
+          "Whether the attempted connection completed with sensitive data.",
+          "Whether any released artifact includes this unreviewed input."
+        ],
+        "next": "Request owner review of the affected build, recorded egress outcome, and release provenance before any further promotion decision.",
+        "pitfall": "Claiming secret theft from a read and connection attempt without transfer evidence."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The lockfile records the new digest, but the approval attachment and retained registry provenance are missing. The digest alone cannot establish source or authorization.",
+          "The installation log retains only an exit status; process and egress detail were not collected. A completed install does not establish what the package did.",
+          "Several internal projects declare the package name. Adoption counts do not authenticate this particular package archive."
+        ],
+        "reasoning": "Neither approved provenance nor observed install behavior is available, so the changed dependency remains an unresolved build input.",
+        "remaining": [
+          "The reviewed source and digest expected for this build.",
+          "Any retained evidence of the install step's actions."
+        ],
+        "next": "Request the missing approval and provenance records and mark install behavior unknown rather than inferred.",
+        "pitfall": "Replacing missing package provenance with reputation or a successful build status."
+      }
+    ],
+    "challenge": "Ask the model to compare exact inputs and observed behavior in separate columns. Make 'unknown transfer outcome' an allowed output.",
+    "debriefPrinciple": "Package name, version, provenance, digest, and executed behavior are different facts; connect them explicitly."
+  },
+  {
+    "id": "app-artifact-mismatch",
+    "category": "Application & data",
+    "title": "A released artifact differs from the earlier build digest",
+    "assetType": "Software release pipeline",
+    "brief": "Explain an artifact mismatch through a verified chain of transformations.",
+    "context": "{{org}} compares a published package with an earlier build output and sees different digests. Some release steps may legitimately change bytes, but the initial report does not include signing, packaging, or promotion records.",
+    "initial": [
+      {
+        "source": "Release monitor",
+        "text": "The published artifact digest differs from the digest recorded by an earlier compile job."
+      },
+      {
+        "source": "Pipeline inventory",
+        "text": "The release pipeline includes packaging and signing stages. The monitor does not identify which stage produced the published file."
+      },
+      {
+        "source": "Deployment summary",
+        "text": "A promotion record exists for the application release, but its artifact linkage and actor details are omitted."
+      }
+    ],
+    "unknowns": [
+      "Is there a verified transformation linking the earlier build to the published artifact?",
+      "Which identity promoted the exact published digest?",
+      "Do retained validation results refer to those same bytes?"
+    ],
+    "hypotheses": [
+      "An approved signing or packaging transformation explains the digest change.",
+      "An unapproved artifact replacement broke the verified release chain.",
+      "Missing provenance prevents the earlier and published artifacts from being linked."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read artifact provenance chain",
+        "purpose": "Trace the exact inputs and outputs of authorized packaging and signing.",
+        "tool": "read_artifact_provenance",
+        "scope": "Retained attestations, manifests, and approved transformation records for this release only."
+      },
+      {
+        "id": "activity",
+        "label": "Read promotion and validation audit",
+        "purpose": "Match the published digest to the promoting identity and recorded checks.",
+        "tool": "read_release_audit",
+        "scope": "Registry promotion audit and already-recorded verification results for the exact published artifact."
+      },
+      {
+        "id": "background",
+        "label": "Read historical build duration",
+        "purpose": "Provide pipeline context without inferring artifact integrity from speed.",
+        "tool": "read_build_duration",
+        "scope": "Aggregate successful build durations for this application."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Verified packaging and signing records link the compile digest to the published digest through the documented release transformation. Each input and output matches the approved pipeline manifest.",
+          "The approved release identity promoted that exact final digest, and the retained integrity and smoke-test results reference the same final artifact.",
+          "The release duration is within the usual range. Normal timing does not verify the artifact's origin or contents."
+        ],
+        "reasoning": "The verified transformation and matching promotion evidence explain the mismatch for this release. They do not imply that the software itself has no defects.",
+        "remaining": [
+          "Whether all distribution channels received the same verified final digest.",
+          "Whether functional and security test coverage meets the release's intended scope."
+        ],
+        "next": "Record the complete digest chain and request any missing distribution-channel receipts.",
+        "pitfall": "Comparing pre-signing and post-signing bytes without tracing the authorized transformation."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "No approved transformation produces the published digest. The verified pipeline's final digest is different, and its attestation does not cover the published object.",
+          "The registry audit records a later replacement by an identity outside the approved release role. Validation results reference the original pipeline artifact, not the replacement.",
+          "The release duration is within the usual range. Normal timing does not verify the artifact's origin or contents."
+        ],
+        "reasoning": "The provenance break and recorded unauthorized replacement support a release-integrity concern. They do not reveal the replacement's intent or detailed contents.",
+        "remaining": [
+          "Where the replacement artifact originated.",
+          "Which environments retrieved the replaced digest."
+        ],
+        "next": "Escalate the exact digest mismatch and replacement audit to release owners for a controlled distribution and impact review.",
+        "pitfall": "Attaching the original artifact's passing tests to different published bytes."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The signing-stage attestation is absent, so no retained record links the compile output to the published digest. The missing link could reflect either a normal transformation or an untracked change.",
+          "The promotion record omits the artifact digest, and retained tests identify only the release label. Labels are insufficient to prove which bytes were validated.",
+          "The release duration is within the usual range. Normal timing does not verify the artifact's origin or contents."
+        ],
+        "reasoning": "The available records cannot prove continuity of the artifact or match validation to the published bytes, so release provenance remains unresolved.",
+        "remaining": [
+          "The signing-stage input and output digest record.",
+          "The exact digest referenced by promotion and validation."
+        ],
+        "next": "Request the missing artifact-specific attestations and audit entries before giving an integrity conclusion.",
+        "pitfall": "Treating a shared release label as cryptographic linkage between artifacts."
+      }
+    ],
+    "challenge": "Build a loop that follows artifact digests across transformations. Stop when a required link is missing instead of guessing that a named release is the same file.",
+    "debriefPrinciple": "A passing test supports the bytes it actually tested; provenance connects those bytes to the release."
+  },
+  {
+    "id": "app-dlp-export",
+    "category": "Application & data",
+    "title": "A data export triggers a sensitive-data rule",
+    "assetType": "Analytics export service",
+    "brief": "Assess export scope, authorization, and completed delivery separately.",
+    "context": "The analytics team at {{org}} exports records for a business request. A DLP rule matches sensitive-field labels, but the alert omits the approved field list, transformation details, and final delivery receipt.",
+    "initial": [
+      {
+        "source": "DLP alert",
+        "text": "An export initiated by {{user}} at {{time}} matched a rule for sensitive customer fields."
+      },
+      {
+        "source": "Export job",
+        "text": "The job references {{ticket}} and reports {{count}} selected records; the alert does not show the output schema or transformations."
+      },
+      {
+        "source": "Destination metadata",
+        "text": "The configured export destination is {{domain}}. Its ownership and the transfer's final status are not included."
+      }
+    ],
+    "unknowns": [
+      "Which fields and recipient were actually approved for the business purpose?",
+      "Did the generated output contain raw, transformed, or excluded sensitive fields?",
+      "Was that exact output delivered to the approved destination?"
+    ],
+    "hypotheses": [
+      "The alert saw upstream labels, while the delivered export followed approved minimization and recipient scope.",
+      "The completed export included restricted fields outside the approved purpose or recipient scope.",
+      "Missing output and delivery records prevent a supported disclosure conclusion."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read export authorization",
+        "purpose": "Compare the exact purpose, allowed fields, transformations, and recipient.",
+        "tool": "read_export_approval",
+        "scope": "Approved {{ticket}} scope and destination ownership for this export job."
+      },
+      {
+        "id": "activity",
+        "label": "Read output schema and delivery receipt",
+        "purpose": "Determine which data left the transformation stage and whether delivery completed.",
+        "tool": "read_export_result",
+        "scope": "Recorded output field summary, transformation verification, and destination receipt; no raw customer values."
+      },
+      {
+        "id": "background",
+        "label": "Read export workload baseline",
+        "purpose": "Add workload context without using frequent exports as authorization.",
+        "tool": "read_export_volume",
+        "scope": "Aggregate export job counts for the same analytics service."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "{{ticket}} approves an aggregate report with direct identifiers excluded and specifies {{domain}} as the verified internal recipient.",
+          "The recorded output schema contains only approved aggregate fields, and transformation verification confirms identifier removal. The matching receipt records delivery to that approved recipient.",
+          "The service runs exports regularly. A familiar schedule does not establish the permitted fields or recipients for this job."
+        ],
+        "reasoning": "The approved scope and verified output support that this delivered report met the specified minimization and recipient requirements. Upstream sensitivity labels alone did not describe the final output.",
+        "remaining": [
+          "Whether aggregation meets any additional documented small-group restrictions.",
+          "Whether retention at the recipient follows the approved purpose."
+        ],
+        "next": "Record the scoped approval, output verification, and receipt; have the owner confirm any remaining aggregation and retention requirements.",
+        "pitfall": "Assuming a DLP match proves raw sensitive fields were present in the delivered artifact."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "{{ticket}} authorizes only aggregate totals for an internal recipient. {{domain}} is outside that recipient scope, and no exception is recorded.",
+          "The recorded output schema includes direct identifiers and restricted detail fields. The matched delivery receipt confirms that this exact export completed to {{domain}}.",
+          "The service runs exports regularly. A familiar schedule does not establish the permitted fields or recipients for this job."
+        ],
+        "reasoning": "The output exceeded the approved data scope and completed to an unapproved destination, supporting an unauthorized disclosure concern. These records do not establish the actor's intent.",
+        "remaining": [
+          "Who controlled the destination at the time of delivery.",
+          "Whether the recipient retained or redistributed the export."
+        ],
+        "next": "Escalate the verified scope and delivery mismatch to the data owner and incident lead with the minimal necessary evidence.",
+        "pitfall": "Inferring malicious intent from an unauthorized export when the records establish action and scope only."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The ticket records a business purpose but lacks an approved field list or verified recipient. A domain name alone does not establish ownership.",
+          "The transformation summary is missing and the job stopped reporting after output creation. No matching receipt or failure event establishes final delivery.",
+          "The service runs exports regularly. A familiar schedule does not establish the permitted fields or recipients for this job."
+        ],
+        "reasoning": "The alert warrants review, but approval scope, actual output, and completed delivery remain unverified. A completed disclosure cannot be claimed from these records.",
+        "remaining": [
+          "The final approved schema and recipient identity.",
+          "The generated output summary and matched delivery outcome."
+        ],
+        "next": "Request the approval attachment, retained output schema, and destination receipt; keep disclosure status unresolved.",
+        "pitfall": "Converting selected source records into a count of records proven delivered."
+      }
+    ],
+    "challenge": "Write an evidence table with approved scope, actual output, and delivery outcome. Require the model to keep intent separate from observed action.",
+    "debriefPrinciple": "Sensitive source data, generated output, and completed disclosure are separate stages with separate evidence."
+  },
+  {
+    "id": "app-backup-deletion",
+    "category": "Application & data",
+    "title": "Backup snapshots disappear during cleanup",
+    "assetType": "Backup management service",
+    "brief": "Determine whether deletion followed retention policy and what recovery evidence remains.",
+    "context": "{{org}} receives an alert about deleted backup snapshots near a routine retention window. The initial alert reports deletion events but not snapshot age, effective retention rules, operator authorization, or the state of remaining recovery copies.",
+    "initial": [
+      {
+        "source": "Backup audit",
+        "text": "At {{time}}, snapshot deletion events were recorded for a protected application."
+      },
+      {
+        "source": "Operations calendar",
+        "text": "A retention-cleanup window overlaps the events. The calendar does not name the exact snapshots or executing identity."
+      },
+      {
+        "source": "Recovery dashboard",
+        "text": "The dashboard still displays a recent successful backup, but its data was last refreshed before the deletion events."
+      }
+    ],
+    "unknowns": [
+      "Were the deleted snapshots eligible under the effective retention policy?",
+      "Did the authorized cleanup identity delete exactly the intended set?",
+      "What current, independently verified recovery copies remain?"
+    ],
+    "hypotheses": [
+      "Approved cleanup deleted expired snapshots while verified in-policy recovery copies remained.",
+      "An unauthorized identity deleted nonexpired snapshots and affected the available recovery set.",
+      "Incomplete policy, identity, or fresh inventory records leave the recovery impact unknown."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read retention policy and deletion provenance",
+        "purpose": "Compare each recorded deletion with policy, snapshot age, and approved actor.",
+        "tool": "read_backup_retention_audit",
+        "scope": "Effective retention policy, exact deleted snapshot metadata, and matching cleanup job identity."
+      },
+      {
+        "id": "activity",
+        "label": "Read remaining-copy verification",
+        "purpose": "Inspect fresh inventory and already-recorded restore-validation outcomes.",
+        "tool": "read_backup_recovery_evidence",
+        "scope": "Post-event backup inventory and retained verification records; do not delete, restore, or change backups."
+      },
+      {
+        "id": "background",
+        "label": "Read backup storage trend",
+        "purpose": "Add capacity context without treating freed space as proof of safe cleanup.",
+        "tool": "read_backup_capacity",
+        "scope": "Aggregate capacity utilization before and after the deletion window."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The deleted snapshots were beyond the effective retention period. The authorized cleanup job's signed manifest lists exactly those snapshot identifiers.",
+          "The post-event inventory shows the required current and independent recovery copies still present. A recorded verification performed after cleanup successfully restored the scoped test dataset from a remaining copy.",
+          "Storage usage fell during the window. Reduced usage does not establish which copies were deleted or whether recovery is possible."
+        ],
+        "reasoning": "The deletion set matches authorized retention cleanup, and fresh inventory plus a bounded restore verification support continued recovery for the tested dataset.",
+        "remaining": [
+          "Whether the recorded test covers all components needed for full service recovery.",
+          "Whether recovery time and recovery-point targets were verified separately."
+        ],
+        "next": "Document the authorized deletion set and tested recovery scope; request any missing full-service recovery evidence.",
+        "pitfall": "Treating one successful restore test as proof that every recovery objective is satisfied."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The deleted set includes snapshots still within required retention. The audit attributes deletion to an identity outside the cleanup role, with no matching approval.",
+          "The fresh inventory confirms required recovery copies are absent from the reviewed repository. A retained post-event validation attempt failed because its expected snapshot was missing; an independently managed offsite copy has not yet been checked.",
+          "Storage usage fell during the window. Reduced usage does not establish which copies were deleted or whether recovery is possible."
+        ],
+        "reasoning": "The unauthorized deletion of nonexpired copies and observed repository impact support escalation. The records do not establish that every independent recovery option is lost.",
+        "remaining": [
+          "Whether independently managed recovery copies remain available.",
+          "How the deleting identity obtained the effective deletion permission."
+        ],
+        "next": "Escalate the policy breach and verified repository impact; request read-only evidence from the independent recovery owner.",
+        "pitfall": "Claiming total irrecoverability without checking independently managed copies."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The current policy is available, but its historical version and deleted snapshot ages are missing. The cleanup log uses a shared identity with no job correlation.",
+          "The recovery dashboard predates the event. The only retained restore test also ran before deletion, and no fresh inventory is available.",
+          "Storage usage fell during the window. Reduced usage does not establish which copies were deleted or whether recovery is possible."
+        ],
+        "reasoning": "The evidence confirms deletion but cannot establish policy compliance, an authorized actor, or current recovery availability.",
+        "remaining": [
+          "The effective policy and snapshot eligibility at deletion time.",
+          "A fresh inventory and post-event recovery verification."
+        ],
+        "next": "Request historical policy and current recovery evidence; describe availability as unknown until those records arrive.",
+        "pitfall": "Using a pre-deletion green dashboard to claim post-deletion recovery readiness."
+      }
+    ],
+    "challenge": "Design a prompt that distinguishes deletion authorization from recovery impact. Choose a stopping rule when fresh recovery evidence is unavailable.",
+    "debriefPrinciple": "Recovery confidence requires current copy evidence and appropriately scoped verification, not only a historical green status."
+  },
+  {
+    "id": "app-unexpected-db-reads",
+    "category": "Application & data",
+    "title": "A service account reads unusual database tables",
+    "assetType": "Reporting database",
+    "brief": "Assess bulk reads by connecting job identity, allowed data, and observed results.",
+    "context": "An audit rule at {{org}} flags a service account reading tables it rarely accesses at this hour. The initial summary lacks the precise originating job, historical grants, query field list, and whether rows were returned to the client.",
+    "initial": [
+      {
+        "source": "Database audit summary",
+        "text": "At {{time}}, a service account associated with {{host}} issued reads against several customer-related tables."
+      },
+      {
+        "source": "Behavior baseline",
+        "text": "The table mix and time differ from the account's recent pattern. No comparison with scheduled one-off jobs is included."
+      },
+      {
+        "source": "Session record",
+        "text": "The activity has database session {{session}}; the initial summary omits client job identity and result counts."
+      }
+    ],
+    "unknowns": [
+      "Which job and effective identity originated this database session?",
+      "Did the approved purpose permit the specific tables and columns read?",
+      "Which requests succeeded and what result scope was returned?"
+    ],
+    "hypotheses": [
+      "An approved one-off reporting job explains the unusual time and data scope.",
+      "The service identity returned restricted data outside its approved job purpose.",
+      "Shared identity or incomplete audit correlation prevents an authorization and impact assessment."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read job purpose and effective permissions",
+        "purpose": "Connect the session to a specific approved job and its allowed data scope.",
+        "tool": "read_database_job_context",
+        "scope": "Job scheduler records, approved {{ticket}} field scope, and historical effective identity for {{session}}."
+      },
+      {
+        "id": "activity",
+        "label": "Read correlated query outcomes",
+        "purpose": "Check the actual columns, execution status, and result scope without retrieving sensitive rows.",
+        "tool": "read_database_session_audit",
+        "scope": "Retained query field summaries, return counts, and client completion metadata for {{session}} only."
+      },
+      {
+        "id": "background",
+        "label": "Read database resource baseline",
+        "purpose": "Provide operational context without confusing normal load with authorized access.",
+        "tool": "read_database_performance",
+        "scope": "Aggregate CPU, latency, and connection counts for the relevant period."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The session maps to an approved one-off reconciliation job under {{ticket}}. Its purpose and field list explicitly allow the queried tables and aggregate columns at this time.",
+          "The correlated audit shows only the approved fields and row filters. Completion metadata matches the expected report, with no restricted detail fields returned in this session.",
+          "Database resource use stayed near its usual range. Normal load does not prove the reads were authorized."
+        ],
+        "reasoning": "The exact job authorization and observed query scope explain this unusual session. The conclusion applies to this job and session, not every use of the service account.",
+        "remaining": [
+          "Whether the report recipient and retention match the separate business approval.",
+          "Whether the same service identity has broader permissions than this job needs."
+        ],
+        "next": "Document the approved-job linkage and bounded query result; ask the owner to review any separate recipient or permission concerns.",
+        "pitfall": "Treating a behavioral anomaly as proof of unauthorized access without checking a one-off approved job."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The session maps to an ad hoc task outside the approved reporting scheduler. {{ticket}} permits aggregate totals only, and no exception allows restricted detail columns.",
+          "The audit records successful reads of direct identifiers and restricted detail columns, with nonzero rows returned to that task. No later delivery or redistribution is recorded.",
+          "Database resource use stayed near its usual range. Normal load does not prove the reads were authorized."
+        ],
+        "reasoning": "The task origin and successful out-of-scope data returns support an unauthorized-access concern. They do not establish where the task later stored or sent those results.",
+        "remaining": [
+          "Who initiated the ad hoc task under the service identity.",
+          "What happened to the returned records after the database response."
+        ],
+        "next": "Escalate the verified access-scope breach and request retained task-origin and downstream handling evidence.",
+        "pitfall": "Calling a successful database read external exfiltration without evidence of a subsequent transfer."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The connection pool reuses a service identity and does not retain the originating job identifier. The historical grant snapshot and one-off job attachment are missing.",
+          "The database summary lists table access attempts but omits selected fields and returned-row counts. The client completion log cannot be matched to {{session}}.",
+          "Database resource use stayed near its usual range. Normal load does not prove the reads were authorized."
+        ],
+        "reasoning": "The unusual access pattern is established, but effective job purpose, actual result scope, and completed returns are not. A narrower conclusion is required.",
+        "remaining": [
+          "The originating job and its approved data scope.",
+          "Correlated field summaries and successful return evidence."
+        ],
+        "next": "Request available scheduler correlation and detailed retained query audit; keep authorization and disclosure outcomes unresolved.",
+        "pitfall": "Attributing a pooled service-account session to a person without a preserved identity chain."
+      }
+    ],
+    "challenge": "Ask the model to distinguish a query attempt, successful data return, and later disclosure. Require an explicit identity-link confidence statement.",
+    "debriefPrinciple": "An anomaly becomes an access finding when purpose, identity, resource scope, and observed result can be connected."
+  }
+]
+

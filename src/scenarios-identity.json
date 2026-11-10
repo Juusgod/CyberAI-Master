@@ -1,0 +1,1928 @@
+[
+  {
+    "id": "id-signin-sequence",
+    "category": "Identity & access",
+    "title": "Failures, then a successful sign-in",
+    "assetType": "identity account",
+    "brief": "Triage the authentication sequence without assuming that success proves account ownership.",
+    "context": "You are reviewing an identity alert for {{user}} at fictional organization {{org}}. The case window contains failed authentication followed by a success, but the first alert is only a summary.",
+    "initial": [
+      {
+        "source": "Sign-in summary",
+        "text": "At {{time}}, {{count}} failed sign-ins for {{user}} were recorded from {{ip}}."
+      },
+      {
+        "source": "Session summary",
+        "text": "At {{later}}, a successful sign-in from the same source created session {{session}}."
+      },
+      {
+        "source": "Alert enrichment",
+        "text": "The alert does not include the successful session’s authentication method, device identity, or subsequent activity."
+      }
+    ],
+    "unknowns": [
+      "Which authentication method and device belong to the successful session?",
+      "Do the failures and success represent the same application flow?",
+      "Does the account owner recognize the session?"
+    ],
+    "hypotheses": [
+      "A legitimate client retried stale credentials before the user signed in.",
+      "Someone obtained usable credentials and opened a session.",
+      "The summary combines unrelated authentication attempts."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Correlate the successful session",
+        "purpose": "Inspect the actual authentication and device records.",
+        "tool": "read_auth_context",
+        "scope": "Account {{user}}, session {{session}}, case time window only."
+      },
+      {
+        "id": "activity",
+        "label": "Review session activity and owner confirmation",
+        "purpose": "Compare recorded activity with independently collected owner confirmation.",
+        "tool": "read_session_review",
+        "scope": "Session {{session}} and the associated analyst confirmation record."
+      },
+      {
+        "id": "background",
+        "label": "Read the tenant’s daily sign-in totals",
+        "purpose": "See general volume; aggregate totals cannot identify this session’s actor.",
+        "tool": "read_auth_totals",
+        "scope": "Read-only daily totals for {{org}}."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The successful session used phishing-resistant MFA on the user’s registered managed device. The failures came from a stale client credential cache.",
+          "The recorded session stayed within the user’s usual application, and an independently recorded owner callback confirms the sign-in.",
+          "The tenant had routine successes and failures during the day. The aggregate report contains no session identifiers or attribution for this case."
+        ],
+        "reasoning": "Session correlation and owner confirmation support a legitimate explanation for this sequence. They reduce concern without proving every associated action was safe.",
+        "remaining": [
+          "Whether the stale client has been corrected.",
+          "Whether other sessions need separate review."
+        ],
+        "next": "Document the correlated records and follow the local closure criteria.",
+        "pitfall": "Treating failed-then-successful authentication as proof of password guessing."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The successful session used a password-only path from a device not registered to the user. The session ID matches the alert.",
+          "The session accessed a sensitive export screen. The owner’s separately recorded callback denies recognizing this session.",
+          "The tenant had routine successes and failures during the day. The aggregate report contains no session identifiers or attribution for this case."
+        ],
+        "reasoning": "Correlated authentication details and the owner’s denial support escalation as suspicious. Visiting an export screen does not establish that data left the system.",
+        "remaining": [
+          "Whether an export completed.",
+          "How the credentials or session were obtained."
+        ],
+        "next": "Review the scoped export audit and request authorized incident handling.",
+        "pitfall": "Calling the account definitely compromised before checking the correlated evidence."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The authentication record is present, but its device field is missing and the method field was not retained.",
+          "Application logs cannot currently be joined to {{session}}. Owner confirmation has not yet been collected.",
+          "The tenant had routine successes and failures during the day. The aggregate report contains no session identifiers or attribution for this case."
+        ],
+        "reasoning": "The available records establish a sequence, not its actor or purpose. Missing correlation prevents a supported disposition.",
+        "remaining": [
+          "The successful session’s authentication method.",
+          "Owner recognition and session-linked activity."
+        ],
+        "next": "Request the missing identity record or an analyst handoff with the gaps listed.",
+        "pitfall": "Interpreting an absent MFA field as proof that MFA was bypassed."
+      }
+    ],
+    "challenge": "Write one observation and one hypothesis about this sequence, then choose the lookup that best separates them.",
+    "debriefPrinciple": "Authenticate the evidence correlation before attributing an authentication event."
+  },
+  {
+    "id": "id-mfa-approval-burst",
+    "category": "Identity & access",
+    "title": "Repeated MFA prompts and one approval",
+    "assetType": "MFA transaction",
+    "brief": "Assess an MFA approval burst while distinguishing rejected requests from the transaction that created a session.",
+    "context": "{{user}} reports unexpected authentication notifications at {{org}}. A summary also shows an approved transaction. Your job is to establish whether those records belong to the same activity.",
+    "initial": [
+      {
+        "source": "MFA notification log",
+        "text": "Starting at {{time}}, {{count}} authentication prompts were sent to {{user}}."
+      },
+      {
+        "source": "Approval summary",
+        "text": "At {{later}}, one MFA transaction was approved and session {{session}} appears in the sign-in summary."
+      },
+      {
+        "source": "Helpdesk note",
+        "text": "The initial ticket says “several unexpected prompts”; it does not identify the approved transaction or confirm who initiated it."
+      }
+    ],
+    "unknowns": [
+      "Which transaction created the session?",
+      "What did the user intend to approve?",
+      "What happened in the resulting session?"
+    ],
+    "hypotheses": [
+      "A retrying legitimate application generated multiple prompts.",
+      "Repeated prompts induced an unintended approval.",
+      "The approved transaction is unrelated to the unexpected prompts."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Join prompts to authentication transactions",
+        "purpose": "Distinguish the approved transaction from surrounding requests.",
+        "tool": "read_mfa_transactions",
+        "scope": "{{user}} and the transactions associated with {{session}}."
+      },
+      {
+        "id": "activity",
+        "label": "Review owner clarification and session use",
+        "purpose": "Check independently collected user intent against correlated activity.",
+        "tool": "read_mfa_case_review",
+        "scope": "The case’s owner interview and session {{session}} activity."
+      },
+      {
+        "id": "background",
+        "label": "Read this week’s MFA prompt volume",
+        "purpose": "Compare general volume without assigning intent to this approval.",
+        "tool": "read_mfa_volume",
+        "scope": "Tenant-level aggregate prompt counts only."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The approved transaction maps to the user’s managed device; the repeated prompts map to a separate reconnecting application.",
+          "The owner clarification identifies the approved transaction as an intended sign-in. Session activity matches the task described in ticket {{ticket}}.",
+          "The weekly prompt total is within a broad historical range. It does not establish who initiated or approved this transaction."
+        ],
+        "reasoning": "The transaction join separates the unexpected notifications from the intended sign-in. The corroborated explanation lowers concern for this session.",
+        "remaining": [
+          "Why the application retried prompts.",
+          "Whether unrelated rejected attempts require review."
+        ],
+        "next": "Document the transaction mapping and route the retry issue to support.",
+        "pitfall": "Assigning one approval to every prompt in a nearby time window."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The approved transaction maps to an unfamiliar device and is part of the same request sequence as the rejected prompts.",
+          "The owner says the approval was made to stop the notifications, not to sign in. The resulting session attempted a new credential registration.",
+          "The weekly prompt total is within a broad historical range. It does not establish who initiated or approved this transaction."
+        ],
+        "reasoning": "Transaction correlation and clarified user intent support suspicion of an unintended approval. The credential-registration attempt requires its own outcome check.",
+        "remaining": [
+          "Whether the registration completed.",
+          "Whether other active sessions were affected."
+        ],
+        "next": "Read the registration outcome and escalate through the approved response process.",
+        "pitfall": "Assuming that a valid MFA approval necessarily represents informed user intent."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "Prompt identifiers were retained, but the approval-to-session join is missing from the export.",
+          "The owner remembers approving a prompt but cannot identify it; session telemetry is incomplete.",
+          "The weekly prompt total is within a broad historical range. It does not establish who initiated or approved this transaction."
+        ],
+        "reasoning": "A burst and an approval are known, but the missing transaction mapping prevents reliable attribution.",
+        "remaining": [
+          "Which approval created {{session}}.",
+          "Whether that approval was intentional."
+        ],
+        "next": "Obtain the original transaction records and retain an unresolved handoff.",
+        "pitfall": "Converting temporal proximity into a confirmed transaction relationship."
+      }
+    ],
+    "challenge": "Which field would you require before stating that the unexpected prompt burst produced this session?",
+    "debriefPrinciple": "Correlate the exact MFA transaction; a nearby approval is not automatically the same event."
+  },
+  {
+    "id": "id-travel-anomaly",
+    "category": "Identity & access",
+    "title": "Two locations, one short interval",
+    "assetType": "sign-in location alert",
+    "brief": "Investigate a location anomaly without treating an IP-derived location as the user’s physical position.",
+    "context": "An alert at {{org}} flags {{user}} for sign-ins assigned to distant regions. Both entries are successful, but the summary gives little information about network routing or device continuity.",
+    "initial": [
+      {
+        "source": "Location enrichment",
+        "text": "A sign-in at {{time}} and another at {{later}} were mapped to distant regions by IP enrichment."
+      },
+      {
+        "source": "Identity log",
+        "text": "The later sign-in used {{ip}} and is associated with session {{session}}."
+      },
+      {
+        "source": "Device summary",
+        "text": "The summary contains browser labels but no stable device identifier or approved egress comparison."
+      }
+    ],
+    "unknowns": [
+      "Does the later source belong to an approved VPN or proxy?",
+      "Do stable device and authentication records connect the sessions?",
+      "Does the user recognize the later activity?"
+    ],
+    "hypotheses": [
+      "VPN or proxy routing changed the apparent location.",
+      "A different actor established the later session.",
+      "The location enrichment or session mapping is inaccurate."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Check routing and stable device evidence",
+        "purpose": "Compare the source with current egress inventory and session device identifiers.",
+        "tool": "read_network_identity_context",
+        "scope": "The two sign-ins, {{ip}}, and the current approved-egress inventory."
+      },
+      {
+        "id": "activity",
+        "label": "Read the session-linked activity review",
+        "purpose": "Compare the later session with independently recorded owner recognition.",
+        "tool": "read_session_activity_review",
+        "scope": "Session {{session}} and the related owner callback."
+      },
+      {
+        "id": "background",
+        "label": "Read the organization’s office locations",
+        "purpose": "Understand the footprint without establishing where this user signed in.",
+        "tool": "read_office_directory",
+        "scope": "Published internal office region list only."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Both records share the same stable managed-device identity and authentication binding. {{ip}} is a currently approved VPN egress.",
+          "The owner confirms the VPN switch in an independent callback; session actions match the stated work.",
+          "The organization operates in several regions. The office directory neither identifies the source network nor links a person to this sign-in."
+        ],
+        "reasoning": "Current routing evidence and device continuity explain the apparent travel. This reduces concern for the location alert while leaving unrelated activity outside scope.",
+        "remaining": [
+          "Whether geolocation enrichment needs correction.",
+          "Whether any separate session alerts exist."
+        ],
+        "next": "Record the routing explanation and apply the established review criteria.",
+        "pitfall": "Treating an IP geolocation label as measured physical travel."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The later record has a different device identity. {{ip}} is absent from the current approved-egress inventory, and the session used a newly issued token.",
+          "The owner denies the later session. Its activity includes an unexpected download request for a restricted document.",
+          "The organization operates in several regions. The office directory neither identifies the source network nor links a person to this sign-in."
+        ],
+        "reasoning": "Different device evidence, owner denial, and unexpected session activity support escalation. An unlisted egress alone would not establish maliciousness.",
+        "remaining": [
+          "Whether the download completed.",
+          "How the new token was issued."
+        ],
+        "next": "Correlate token issuance and download outcome in the incident review.",
+        "pitfall": "Using unfamiliar geography as the sole proof of an attacker."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The egress inventory is incomplete for this provider, and the later record has no stable device ID.",
+          "The relevant application logs are delayed, and owner confirmation is unavailable.",
+          "The organization operates in several regions. The office directory neither identifies the source network nor links a person to this sign-in."
+        ],
+        "reasoning": "The location anomaly cannot currently distinguish routing behavior from a different actor.",
+        "remaining": [
+          "Current egress ownership.",
+          "Stable device evidence and session-linked activity."
+        ],
+        "next": "Request the missing routing and device records before assigning a final disposition.",
+        "pitfall": "Assuming that missing device data means a new device was used."
+      }
+    ],
+    "challenge": "Rewrite “the user traveled between these countries” as an observation supported by the alert.",
+    "debriefPrinciple": "Describe enrichment as enrichment and verify the underlying session and network relationship."
+  },
+  {
+    "id": "id-oauth-consent",
+    "category": "Identity & access",
+    "title": "A newly consented application",
+    "assetType": "application consent grant",
+    "brief": "Assess a new application grant by checking the exact application, permissions, authorization, and use.",
+    "context": "A consent alert at {{org}} shows {{user}} granting an application access. The application’s friendly name resembles an internal utility, but friendly names are not sufficient identifiers.",
+    "initial": [
+      {
+        "source": "Consent audit",
+        "text": "At {{time}}, {{user}} granted an application access to profile information and file metadata."
+      },
+      {
+        "source": "Application inventory",
+        "text": "The application name is new to the alert’s recent-history window."
+      },
+      {
+        "source": "Token summary",
+        "text": "At {{later}}, a token associated with the new grant was used; the summary omits object-level activity."
+      }
+    ],
+    "unknowns": [
+      "Does the application ID match an approved integration?",
+      "Were the exact permissions approved for this user?",
+      "Which resources did the token access?"
+    ],
+    "hypotheses": [
+      "An approved integration was introduced through a planned rollout.",
+      "A misleading application obtained access the user did not intend.",
+      "Inventory or audit gaps prevent assessment of a legitimate or abusive grant."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Match the application and approved grant",
+        "purpose": "Compare immutable application identifiers and permission scope with the approval record.",
+        "tool": "read_consent_inventory",
+        "scope": "The alerted application ID, grant, and linked approval {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Review token use and owner clarification",
+        "purpose": "Read scoped resource accesses and independently recorded user intent.",
+        "tool": "read_application_token_activity",
+        "scope": "Tokens issued from the alerted grant during the case window."
+      },
+      {
+        "id": "background",
+        "label": "Read the application’s display-name history",
+        "purpose": "Look for naming changes without treating the name as proof of identity.",
+        "tool": "read_app_name_history",
+        "scope": "Historical friendly names for the alerted application ID."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The immutable application ID and exact permissions match an approved rollout in {{ticket}}. The user is included in that rollout.",
+          "Token access is limited to the documented test folder, and the owner confirms enrolling in the rollout.",
+          "The displayed application name has been edited before. A friendly-name history does not establish approval, publisher identity, or legitimate token use."
+        ],
+        "reasoning": "Identifier matching, permission approval, and scoped use support a legitimate rollout explanation. Approval alone would not validate all future token activity.",
+        "remaining": [
+          "Whether access remains limited over time.",
+          "Whether the rollout’s access expiration is enforced."
+        ],
+        "next": "Record the grant and resource scope for follow-up under the rollout policy.",
+        "pitfall": "Approving an application based only on its familiar display name."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The application ID differs from the approved internal utility despite a similar name. No matching permission approval exists in the current change system.",
+          "The owner says the consent screen appeared in an unsolicited document invitation. The token enumerated restricted folder metadata outside the stated task.",
+          "The displayed application name has been edited before. A friendly-name history does not establish approval, publisher identity, or legitimate token use."
+        ],
+        "reasoning": "The identifier mismatch and unexpected resource use support suspicion of a misleading consent grant. Metadata enumeration is not proof that file contents were downloaded.",
+        "remaining": [
+          "Whether additional permissions were granted.",
+          "Whether file-content access occurred."
+        ],
+        "next": "Escalate the grant for authorized review and correlate subsequent resource operations.",
+        "pitfall": "Equating an application’s friendly name with a verified integration identity."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The application ID is available, but the approval system export lacks the corresponding integration records.",
+          "Token-use telemetry stops at authentication, so the accessed resources cannot be determined.",
+          "The displayed application name has been edited before. A friendly-name history does not establish approval, publisher identity, or legitimate token use."
+        ],
+        "reasoning": "The grant exists, but approval and actual use remain unverified.",
+        "remaining": [
+          "Whether the exact grant was approved.",
+          "Which resources were accessed."
+        ],
+        "next": "Obtain the current approval record and object-level access audit.",
+        "pitfall": "Treating a missing inventory entry in an incomplete export as proof of unauthorized access."
+      }
+    ],
+    "challenge": "Which identifiers and permission fields should your prompt require before comparing this app with an approved one?",
+    "debriefPrinciple": "Match immutable identity and exact scope, then verify what the grant was used to do."
+  },
+  {
+    "id": "id-privileged-role",
+    "category": "Identity & access",
+    "title": "A privileged role was granted",
+    "assetType": "privileged role assignment",
+    "brief": "Determine whether a privileged role assignment and its use fit an approved change.",
+    "context": "A privileged role was assigned to {{user}} at {{org}}. The alert shows the role and time, but the approval, duration, and actions are not included in the first evidence packet.",
+    "initial": [
+      {
+        "source": "Role audit",
+        "text": "At {{time}}, {{user}} received a role that permits modifying group membership."
+      },
+      {
+        "source": "Directory audit",
+        "text": "At {{later}}, a group membership change was recorded under the same account."
+      },
+      {
+        "source": "Alert summary",
+        "text": "The initial summary does not state whether the grant was eligible, approved, time-limited, or still active."
+      }
+    ],
+    "unknowns": [
+      "Who approved the exact role and duration?",
+      "Which group was changed and for what purpose?",
+      "Was the role removed or expired as expected?"
+    ],
+    "hypotheses": [
+      "A planned administration task used approved temporary privilege.",
+      "Privilege was granted or used outside the authorized scope.",
+      "The available audit export cannot connect approval, grant, and action."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read grant approval and lifecycle",
+        "purpose": "Verify the assignment, approver, expiration, and current state.",
+        "tool": "read_role_assignment_context",
+        "scope": "The alerted assignment for {{user}} and approval {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Inspect the privileged operation",
+        "purpose": "Read the changed group and the operation’s relationship to the approved task.",
+        "tool": "read_privileged_audit",
+        "scope": "Operations performed during the exact role-assignment interval."
+      },
+      {
+        "id": "background",
+        "label": "Read the account’s historical role count",
+        "purpose": "Provide history without authorizing the current grant.",
+        "tool": "read_role_history_summary",
+        "scope": "Aggregate prior role assignments for {{user}}."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "A valid approval in {{ticket}} names the exact role, account, and short duration. The assignment expired at the approved time.",
+          "The only recorded write added the specified service group to the documented project group; the object IDs match the change plan.",
+          "The account has held administrative roles before. Historical privilege does not authorize this assignment or its associated change."
+        ],
+        "reasoning": "The approval, lifecycle, and observed operation align with the planned task. The conclusion applies to the examined audit interval.",
+        "remaining": [
+          "Whether all downstream group effects match the change plan.",
+          "Whether the audit interval is complete."
+        ],
+        "next": "Attach the approval and object-level audit to the review record.",
+        "pitfall": "Treating any privileged role grant as either automatically malicious or automatically justified."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The current approval record names a different role and account. The alerted assignment has no expiration.",
+          "The account added an unapproved external principal to a sensitive group outside the documented task.",
+          "The account has held administrative roles before. Historical privilege does not authorize this assignment or its associated change."
+        ],
+        "reasoning": "The approval mismatch and out-of-scope privileged operation support escalation. The initiating actor still requires investigation.",
+        "remaining": [
+          "Who initiated the assignment.",
+          "Whether the external principal used the new access."
+        ],
+        "next": "Review assignment provenance and subsequent access through the authorized response workflow.",
+        "pitfall": "Checking only that some change ticket exists instead of matching its exact scope."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The assignment record is intact, but the linked approval has not been retained in the available export.",
+          "The group operation is recorded without the target object identifier, preventing comparison with the planned task.",
+          "The account has held administrative roles before. Historical privilege does not authorize this assignment or its associated change."
+        ],
+        "reasoning": "The grant and a write occurred, but missing approval and target details prevent a defensible authorization assessment.",
+        "remaining": [
+          "Exact approval scope.",
+          "Target group and membership delta."
+        ],
+        "next": "Retrieve the original approval and object-level directory event.",
+        "pitfall": "Assuming that an account name alone proves an operation matched an approved task."
+      }
+    ],
+    "challenge": "What would your verifier compare besides the existence of a change ticket?",
+    "debriefPrinciple": "Authorization is a match between identity, action, resource, and time—not just a ticket number."
+  },
+  {
+    "id": "id-recovery-reset",
+    "category": "Identity & access",
+    "title": "Recovery changes before a password reset",
+    "assetType": "account recovery workflow",
+    "brief": "Assess a recovery-factor change followed by a password reset without inferring the actor from the audit username.",
+    "context": "The recovery workflow for {{user}} at {{org}} changed shortly before a password reset. The summary identifies the affected account but omits the verification path and initiating support session.",
+    "initial": [
+      {
+        "source": "Recovery audit",
+        "text": "At {{time}}, a recovery contact for {{user}} was changed."
+      },
+      {
+        "source": "Reset audit",
+        "text": "At {{later}}, the password-reset workflow completed for the same account."
+      },
+      {
+        "source": "Identity summary",
+        "text": "A later sign-in is linked to session {{session}}; verification steps and helpdesk correlation are absent from the alert."
+      }
+    ],
+    "unknowns": [
+      "Which verification path authorized the contact change?",
+      "Does a legitimate helpdesk case match the exact actions?",
+      "Does the user recognize the recovery changes and new session?"
+    ],
+    "hypotheses": [
+      "An approved recovery case replaced an inaccessible contact.",
+      "The recovery process was abused to gain access.",
+      "Incomplete workflow records obscure the legitimacy of the sequence."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read recovery verification records",
+        "purpose": "Check the verified identity path and exact helpdesk action scope.",
+        "tool": "read_recovery_workflow",
+        "scope": "The contact change, reset transaction, and related case {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Read owner confirmation and resulting access",
+        "purpose": "Correlate independent owner clarification and the subsequent session.",
+        "tool": "read_recovery_session_review",
+        "scope": "Session {{session}} and the recovery case’s callback record."
+      },
+      {
+        "id": "background",
+        "label": "Read monthly password-reset volume",
+        "purpose": "Provide operational context without validating this reset.",
+        "tool": "read_reset_statistics",
+        "scope": "Monthly reset counts for {{org}} only."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The original workflow shows the required identity verification and an approved contact replacement in {{ticket}}. The transaction IDs match the alert.",
+          "The account owner confirms the replacement through the recorded verification channel. The later session uses the registered managed device and expected application.",
+          "Password resets are common in the organization. The monthly total contains no evidence about verification of this recovery transaction."
+        ],
+        "reasoning": "Matched workflow verification and owner confirmation support an authorized recovery explanation. Subsequent access remains separately reviewable.",
+        "remaining": [
+          "Whether obsolete recovery contacts were removed.",
+          "Whether all reset-related sessions are accounted for."
+        ],
+        "next": "Document the transaction IDs and complete the recovery review.",
+        "pitfall": "Using the affected account’s name as proof that the account owner initiated the reset."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The verification step is explicitly recorded as skipped by an administrative override, and the helpdesk approval does not authorize a contact change.",
+          "The owner denies requesting recovery. The new session registered another authentication method from an unfamiliar device.",
+          "Password resets are common in the organization. The monthly total contains no evidence about verification of this recovery transaction."
+        ],
+        "reasoning": "The recorded override, approval mismatch, and denied activity support escalation for recovery-process abuse. The responsible actor is not yet established.",
+        "remaining": [
+          "Who authorized or used the override.",
+          "Whether the additional authentication method remains active."
+        ],
+        "next": "Correlate the administrative session and request authorized containment review.",
+        "pitfall": "Interpreting a completed recovery workflow as evidence that identity verification succeeded."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The available workflow export records completion but omits the verification decisions and operator session.",
+          "Owner confirmation is pending, and the device record for {{session}} has not arrived.",
+          "Password resets are common in the organization. The monthly total contains no evidence about verification of this recovery transaction."
+        ],
+        "reasoning": "Completion is established, but authorization and actor attribution are unresolved.",
+        "remaining": [
+          "Verification decisions and operator identity.",
+          "Owner recognition of the resulting session."
+        ],
+        "next": "Obtain the original recovery workflow and independent owner confirmation.",
+        "pitfall": "Treating a missing verification field as an explicit verification failure."
+      }
+    ],
+    "challenge": "How would you distinguish “verification skipped” from “verification record unavailable” in the output schema?",
+    "debriefPrinciple": "Separate workflow completion, verification outcome, and actor attribution."
+  },
+  {
+    "id": "mail-forwarding-rule",
+    "category": "Email & collaboration",
+    "title": "A new external forwarding rule",
+    "assetType": "mailbox rule",
+    "brief": "Assess a forwarding rule by checking its creator, destination, approval, and actual message matches.",
+    "context": "A mailbox rule for {{user}} at {{org}} forwards matching messages outside the organization. The summary shows a rule change but not whether it matched messages or was approved.",
+    "initial": [
+      {
+        "source": "Mailbox audit",
+        "text": "At {{time}}, a forwarding rule targeting an address at {{domain}} was created for {{user}}."
+      },
+      {
+        "source": "Rule metadata",
+        "text": "The rule applies to a subset of incoming messages; the alert omits its full condition and creator session."
+      },
+      {
+        "source": "Delivery summary",
+        "text": "At {{later}}, the mailbox received new messages, but the initial packet contains no rule-match or delivery outcomes."
+      }
+    ],
+    "unknowns": [
+      "Who or what created the rule?",
+      "Was this exact destination and condition approved?",
+      "Did any messages match and reach the destination?"
+    ],
+    "hypotheses": [
+      "An approved workflow routes selected messages to a service provider.",
+      "An unauthorized rule redirects information.",
+      "A rule exists but the available audit cannot establish intent or effect."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read the rule and approval context",
+        "purpose": "Match rule conditions, creator session, and destination to approved scope.",
+        "tool": "read_mail_rule_context",
+        "scope": "The alerted rule for {{user}} and the related approval {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Trace matched messages and delivery outcomes",
+        "purpose": "Establish actual rule effects rather than inferring delivery from configuration.",
+        "tool": "read_rule_message_trace",
+        "scope": "Messages matched by the alerted rule during the case window."
+      },
+      {
+        "id": "background",
+        "label": "Read the external domain’s public description",
+        "purpose": "Provide context without proving who controls the mailbox or authorizing forwarding.",
+        "tool": "read_domain_description",
+        "scope": "Cached descriptive record for {{domain}} only."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The creator session belongs to the approved administrator, and the exact destination and invoice-only condition match {{ticket}}.",
+          "The trace contains only the approved test message and its expected delivery receipt. No other matching deliveries appear in the examined window.",
+          "A descriptive domain record labels the destination as a communications service. It does not verify the receiving account or authorize forwarding."
+        ],
+        "reasoning": "The exact rule scope and observed test delivery align with the approved workflow. This does not guarantee that future rule matches will remain appropriate.",
+        "remaining": [
+          "Whether the rule expires as planned.",
+          "Whether the destination account’s access remains restricted."
+        ],
+        "next": "Record the scope and schedule the policy-defined follow-up.",
+        "pitfall": "Assuming that an approved provider domain authorizes any forwarding address on that domain."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The rule was created by an unrecognized session. Its condition includes sensitive project messages, and no matching destination approval exists.",
+          "Message tracing confirms delivery of matching project messages to the configured external address.",
+          "A descriptive domain record labels the destination as a communications service. It does not verify the receiving account or authorize forwarding."
+        ],
+        "reasoning": "Unapproved scope and confirmed delivery support escalation for unauthorized forwarding. The evidence establishes delivery, not what the recipient later did with the messages.",
+        "remaining": [
+          "The creator session’s origin.",
+          "The full set of affected messages."
+        ],
+        "next": "Preserve scoped delivery records and request authorized incident handling.",
+        "pitfall": "Calling exfiltration complete from rule creation alone without delivery evidence."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The rule conditions are available, but the creator session and approval record are missing from the export.",
+          "The trace records rule evaluation but not final delivery outcomes.",
+          "A descriptive domain record labels the destination as a communications service. It does not verify the receiving account or authorize forwarding."
+        ],
+        "reasoning": "A potentially consequential configuration exists, but authorization and actual delivery remain unresolved.",
+        "remaining": [
+          "Who created the rule and with what authority.",
+          "Whether matched messages were delivered."
+        ],
+        "next": "Retrieve the creator audit and complete message trace.",
+        "pitfall": "Equating a forwarding configuration with a proven transfer."
+      }
+    ],
+    "challenge": "Write separate findings for configuration risk and observed delivery.",
+    "debriefPrinciple": "Configuration, execution, and delivery are distinct evidence stages."
+  },
+  {
+    "id": "mail-invoice-attachment",
+    "category": "Email & collaboration",
+    "title": "An invoice attachment was opened",
+    "assetType": "email attachment alert",
+    "brief": "Assess an attachment alert by correlating the exact file, analysis results, and endpoint behavior.",
+    "context": "{{user}} opened an invoice attachment received at {{org}}. The mail gateway assigns it an unusual-file warning, while the initial endpoint summary only confirms that a viewer opened the file.",
+    "initial": [
+      {
+        "source": "Mail gateway",
+        "text": "At {{time}}, an invoice-themed message from an address at {{domain}} delivered an attachment to {{user}}."
+      },
+      {
+        "source": "Attachment metadata",
+        "text": "The attachment hash is recorded, and the gateway flags a file-type mismatch for review."
+      },
+      {
+        "source": "Endpoint summary",
+        "text": "At {{later}}, {{host}} opened the attachment in a document viewer; the summary does not include child processes or file-analysis detail."
+      }
+    ],
+    "unknowns": [
+      "Do analysis results refer to the exact attachment hash?",
+      "What did the endpoint do after opening the file?",
+      "Is the sender relationship independently verified?"
+    ],
+    "hypotheses": [
+      "A legitimate supplier export uses an unusual container or extension.",
+      "The attachment attempted activity outside document viewing.",
+      "File-analysis or endpoint gaps prevent disposition."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read exact-hash attachment analysis",
+        "purpose": "Examine the actual file structure and analysis for this attachment.",
+        "tool": "read_attachment_analysis",
+        "scope": "The hash recorded in the alerted message only."
+      },
+      {
+        "id": "activity",
+        "label": "Read the post-open process timeline",
+        "purpose": "Correlate the viewer with subsequent processes and an existing supplier-verification note.",
+        "tool": "read_attachment_endpoint_review",
+        "scope": "{{host}}, the attachment-open event, and its immediate process tree."
+      },
+      {
+        "id": "background",
+        "label": "Read the sender’s display-name history",
+        "purpose": "Understand prior presentation without authenticating this message.",
+        "tool": "read_sender_display_history",
+        "scope": "Historical displayed names for the sender address only."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Analysis of the exact hash identifies a supplier-generated archive containing static invoice data; the warning concerns its extension. No active content appears in the supplied analysis.",
+          "The endpoint timeline shows only the expected viewer and temporary rendering files. An independently recorded supplier callback confirms this invoice transfer.",
+          "The sender has previously used an invoice-related display name. Display names do not authenticate the message or establish attachment safety."
+        ],
+        "reasoning": "Exact-file analysis, correlated viewing behavior, and supplier confirmation support lower concern for the examined event. Analysis has finite coverage.",
+        "remaining": [
+          "Whether any other attachment version was received.",
+          "Whether endpoint telemetry covers the full relevant interval."
+        ],
+        "next": "Record the exact hash and the documented explanation for the warning.",
+        "pitfall": "Calling a file safe solely because a scan returned no detection."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "Analysis of the exact hash identifies active content inconsistent with a static invoice and records an attempted external resource request.",
+          "The viewer started an unexpected scripting process, which attempted a connection unrelated to the supplier workflow.",
+          "The sender has previously used an invoice-related display name. Display names do not authenticate the message or establish attachment safety."
+        ],
+        "reasoning": "File analysis and correlated endpoint behavior support suspicion of an attachment-driven execution attempt. The records do not establish every attempted action succeeded.",
+        "remaining": [
+          "Whether the network request completed.",
+          "What changes the spawned process made."
+        ],
+        "next": "Review the scoped execution and network outcomes under incident procedure.",
+        "pitfall": "Treating an attempted connection as a confirmed data transfer."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The available analysis result refers to a different attachment hash; the alerted hash has no completed analysis.",
+          "The endpoint has a telemetry gap immediately after the viewer opened the file.",
+          "The sender has previously used an invoice-related display name. Display names do not authenticate the message or establish attachment safety."
+        ],
+        "reasoning": "The file was opened, but neither a matching analysis nor a complete behavior trace is available.",
+        "remaining": [
+          "Analysis of the exact delivered hash.",
+          "The missing post-open process and network records."
+        ],
+        "next": "Obtain exact-hash analysis and endpoint records before classifying the event.",
+        "pitfall": "Applying a clean result for a different file to the alerted attachment."
+      }
+    ],
+    "challenge": "What identifiers must match before you use a sandbox or scanner result as evidence?",
+    "debriefPrinciple": "Verification applies to the exact artifact and observed behavior, not a similar filename."
+  },
+  {
+    "id": "mail-reply-chain",
+    "category": "Email & collaboration",
+    "title": "A payment change inside an existing thread",
+    "assetType": "email conversation anomaly",
+    "brief": "Evaluate a changed payment instruction using message provenance and independently verified business intent.",
+    "context": "A reply in an ongoing supplier conversation asks {{user}} at {{org}} to change payment details. The quoted thread looks familiar, but the initial packet does not establish the origin of the new instruction.",
+    "initial": [
+      {
+        "source": "Message report",
+        "text": "At {{time}}, {{user}} received a reply containing a new payment destination instruction."
+      },
+      {
+        "source": "Thread metadata",
+        "text": "The message includes quoted text from a previous conversation and an external reply address at {{domain}}."
+      },
+      {
+        "source": "Workflow status",
+        "text": "At {{later}}, the proposed change is pending review; no completed payment is recorded in the case packet."
+      }
+    ],
+    "unknowns": [
+      "Does the new message belong to the verified sender account?",
+      "Were payment details confirmed through an independent channel?",
+      "Has any workflow action already occurred?"
+    ],
+    "hypotheses": [
+      "A legitimate supplier requested a verified payment-detail change.",
+      "A spoofed or compromised conversation introduced an unauthorized change.",
+      "Message provenance and business confirmation remain incomplete."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read the message provenance comparison",
+        "purpose": "Compare exact sender, reply route, and message identifiers with the known conversation.",
+        "tool": "read_message_provenance",
+        "scope": "The new message and the known-good conversation records."
+      },
+      {
+        "id": "activity",
+        "label": "Read independent verification and workflow status",
+        "purpose": "Check a callback using pre-existing contact details and the current change state.",
+        "tool": "read_payment_change_review",
+        "scope": "The case’s verification record and pending change request only."
+      },
+      {
+        "id": "background",
+        "label": "Read the supplier’s public business profile",
+        "purpose": "Provide background without validating this instruction.",
+        "tool": "read_supplier_profile",
+        "scope": "Cached public description of the named supplier."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The new message’s sender and reply route match the established account identifiers; the conversation linkage is intact.",
+          "A callback using the previously stored supplier number confirms the requested details. The change remains within the approval workflow and no payment has yet been made.",
+          "The public profile describes a real business relationship. It does not authenticate the message or authorize new payment details."
+        ],
+        "reasoning": "Message consistency and independent business verification support a legitimate change request. Financial execution still requires the normal approval process.",
+        "remaining": [
+          "Whether the required financial approvals are complete.",
+          "Whether the final entered details match the verified record."
+        ],
+        "next": "Document verification and leave the decision to the established approval workflow.",
+        "pitfall": "Allowing the email itself to authorize a payment change."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The reply route differs from the established account and uses a similar-looking address; quoted text was copied into a new message chain.",
+          "The supplier denies the change during a callback to the pre-existing contact. The change request is still pending.",
+          "The public profile describes a real business relationship. It does not authenticate the message or authorize new payment details."
+        ],
+        "reasoning": "Provenance mismatch and independent denial support suspicion of a fraudulent instruction. The current evidence shows an attempt, not a completed payment loss.",
+        "remaining": [
+          "How the prior thread text was obtained.",
+          "Whether other recipients received the same request."
+        ],
+        "next": "Preserve the message and escalate the attempted change through the existing process.",
+        "pitfall": "Treating familiar quoted text as proof that the new instruction is authentic."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The exported message lacks the full routing fields needed to compare it with the established sender.",
+          "Independent supplier confirmation is pending; the payment-change request has not been approved.",
+          "The public profile describes a real business relationship. It does not authenticate the message or authorize new payment details."
+        ],
+        "reasoning": "The requested change cannot currently be authenticated. The pending workflow state should be kept explicit.",
+        "remaining": [
+          "Complete message provenance.",
+          "Independent confirmation through an established contact."
+        ],
+        "next": "Request the original message and independent verification before disposition.",
+        "pitfall": "Guessing authenticity from writing style or a familiar signature."
+      }
+    ],
+    "challenge": "What would count as independent confirmation, rather than another claim from the same email?",
+    "debriefPrinciple": "Verify business intent through a channel independent of the disputed instruction."
+  },
+  {
+    "id": "mail-external-share",
+    "category": "Email & collaboration",
+    "title": "A new external collaboration link",
+    "assetType": "document-sharing permission",
+    "brief": "Assess an external sharing change by examining exact access scope and actual use.",
+    "context": "{{org}} receives a sharing alert for a project document owned by {{user}}. A link was created for an external destination, but the summary omits its audience restrictions and whether anyone used it.",
+    "initial": [
+      {
+        "source": "Collaboration audit",
+        "text": "At {{time}}, {{user}} created a sharing link for a project document."
+      },
+      {
+        "source": "Sharing summary",
+        "text": "The destination includes a contact at {{domain}}. The initial record does not state whether the link is recipient-bound or broadly accessible."
+      },
+      {
+        "source": "Access summary",
+        "text": "At {{later}}, the document has an access event whose principal and outcome are omitted from the summary."
+      }
+    ],
+    "unknowns": [
+      "What exact audience and capabilities does the link grant?",
+      "Does the recipient and document scope match an approved collaboration?",
+      "Who actually accessed the document?"
+    ],
+    "hypotheses": [
+      "A restricted link supports an approved collaboration.",
+      "An overly broad or unauthorized share exposed sensitive material.",
+      "Incomplete permission or access records prevent assessment."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read effective sharing permissions",
+        "purpose": "Inspect audience, recipient binding, expiration, and approved resource scope.",
+        "tool": "read_document_share_context",
+        "scope": "The alerted document, link ID, and approval {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Read principal-level access outcomes",
+        "purpose": "Identify the principal and actual view or download outcome.",
+        "tool": "read_shared_document_access",
+        "scope": "Accesses using the alerted sharing link during the case window."
+      },
+      {
+        "id": "background",
+        "label": "Read the project’s collaboration count",
+        "purpose": "Provide volume context without validating this link.",
+        "tool": "read_project_share_summary",
+        "scope": "Aggregate sharing counts for this project only."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The link is bound to the approved recipient, allows viewing only, and expires within the period in {{ticket}}. The document ID matches the approved scope.",
+          "The only recorded access is a successful view by that verified recipient. No download is recorded in the inspected interval.",
+          "The project has several external collaborations. That history does not establish the permissions or authorization of this link."
+        ],
+        "reasoning": "Effective permissions and the observed principal match the approved collaboration. The limited audit interval does not prove all future access will remain appropriate.",
+        "remaining": [
+          "Whether the link expires as configured.",
+          "Whether the document’s sensitivity changes during the collaboration."
+        ],
+        "next": "Record effective permissions and the policy-defined expiration review.",
+        "pitfall": "Assuming an external share is automatically public."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The link permits anonymous downloading and covers a sensitive document not included in the current approval.",
+          "The access audit records a successful download using the anonymous link; no named recipient can be attributed to that event.",
+          "The project has several external collaborations. That history does not establish the permissions or authorization of this link."
+        ],
+        "reasoning": "Broad unauthorized scope and a completed download support escalation. The anonymous log does not identify the human downloader.",
+        "remaining": [
+          "Who obtained the link.",
+          "Whether additional documents were exposed."
+        ],
+        "next": "Preserve the effective-permission and download records for authorized incident response.",
+        "pitfall": "Assigning anonymous access to the intended recipient without evidence."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The audit export shows link creation but omits its effective audience and capability settings.",
+          "The access summary cannot be resolved to a principal or a final outcome.",
+          "The project has several external collaborations. That history does not establish the permissions or authorization of this link."
+        ],
+        "reasoning": "A sharing change and a later access event exist, but exposure and actual use cannot yet be established.",
+        "remaining": [
+          "Effective permissions at the event time.",
+          "The access principal and outcome."
+        ],
+        "next": "Retrieve the historical permission snapshot and full access event.",
+        "pitfall": "Treating a generic access event as a successful external download."
+      }
+    ],
+    "challenge": "Separate the questions “who could access it?” and “who did access it?” in your output.",
+    "debriefPrinciple": "Effective access scope and observed access are different security claims."
+  },
+  {
+    "id": "mail-bulk-access",
+    "category": "Email & collaboration",
+    "title": "A burst of mailbox reads",
+    "assetType": "mailbox API activity",
+    "brief": "Assess a mailbox-read burst by identifying the principal, authorized purpose, and exact operations.",
+    "context": "Monitoring at {{org}} reports a burst of API reads associated with {{user}}. The alert groups several operations together and does not distinguish metadata listing from message-content retrieval.",
+    "initial": [
+      {
+        "source": "Mailbox API summary",
+        "text": "At {{time}}, {{count}} mailbox API operations occurred for {{user}} in a short interval."
+      },
+      {
+        "source": "Client summary",
+        "text": "The client label differs from the account’s recent interactive mail sessions."
+      },
+      {
+        "source": "Audit excerpt",
+        "text": "Operations continue until {{later}}, but the summary lacks application ID, grant scope, and per-operation result."
+      }
+    ],
+    "unknowns": [
+      "Which application or session performed the operations?",
+      "Was the exact mailbox access scope approved?",
+      "Were operations metadata reads, content reads, or failures?"
+    ],
+    "hypotheses": [
+      "An approved export or indexing task accessed the mailbox.",
+      "An unauthorized principal collected mailbox information.",
+      "Grouped or incomplete audit records exaggerate or obscure the activity."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read the application grant and job approval",
+        "purpose": "Match immutable client identity, delegated scope, and approved purpose.",
+        "tool": "read_mail_api_context",
+        "scope": "The alerted client, mailbox {{user}}, and job approval {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Read operation-level mailbox results",
+        "purpose": "Separate metadata, message-content reads, and failed operations.",
+        "tool": "read_mail_operation_audit",
+        "scope": "The alerted operation IDs during the case window."
+      },
+      {
+        "id": "background",
+        "label": "Read the mailbox’s message count",
+        "purpose": "Understand mailbox size without validating any read.",
+        "tool": "read_mailbox_size",
+        "scope": "Aggregate message count only; no message content."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The client ID and mailbox scope match an approved indexing job in {{ticket}}. The job identity has the documented restricted grant.",
+          "Operation-level audit shows metadata listing only for the approved folder set; the job completed at the expected time.",
+          "The mailbox contains many messages. Its size cannot identify the requesting application or establish whether the observed reads were authorized."
+        ],
+        "reasoning": "The matched job identity and restricted operation results support a legitimate indexing explanation. This assessment does not authorize broader message-content access.",
+        "remaining": [
+          "Whether the grant is removed after the job.",
+          "Whether later operations remain within scope."
+        ],
+        "next": "Document client identity and operation types in the review.",
+        "pitfall": "Calling every mailbox API operation a full-message download."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The client ID has no matching job approval and uses a grant broader than the recorded business task.",
+          "The audit confirms successful message-body and attachment reads from folders outside the stated task.",
+          "The mailbox contains many messages. Its size cannot identify the requesting application or establish whether the observed reads were authorized."
+        ],
+        "reasoning": "Unapproved client scope and confirmed content retrieval support escalation. The evidence does not by itself establish where retrieved data was later stored.",
+        "remaining": [
+          "How the application obtained its grant.",
+          "Whether other mailboxes were accessed."
+        ],
+        "next": "Review grant provenance and the bounded set of affected mailboxes.",
+        "pitfall": "Equating API access with confirmed downstream disclosure without tracing the next stage."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The audit export resolves the user but not the application principal or grant ID.",
+          "The grouped counter cannot distinguish successful content reads from metadata requests and retries.",
+          "The mailbox contains many messages. Its size cannot identify the requesting application or establish whether the observed reads were authorized."
+        ],
+        "reasoning": "The activity volume is known, but identity, authorization, and read type remain unresolved.",
+        "remaining": [
+          "Application principal and grant scope.",
+          "Per-operation type and success outcome."
+        ],
+        "next": "Obtain principal-resolved operation logs before labeling the burst.",
+        "pitfall": "Treating an aggregate request count as a count of successfully retrieved messages."
+      }
+    ],
+    "challenge": "What operation fields would you require before reporting that message contents were accessed?",
+    "debriefPrinciple": "Counts need operation semantics, identity, and outcomes to become meaningful evidence."
+  },
+  {
+    "id": "mail-lookalike-invite",
+    "category": "Email & collaboration",
+    "title": "A collaboration invite with a familiar logo",
+    "assetType": "email-linked sign-in page",
+    "brief": "Evaluate a collaboration invitation using link destination, tenant identity, and observed user interaction.",
+    "context": "{{user}} at {{org}} reports a document invitation that uses a familiar service name and logo. The email link was followed, but the initial packet does not show whether credentials were entered or a session was issued.",
+    "initial": [
+      {
+        "source": "Reported message",
+        "text": "At {{time}}, an invitation from an address at {{domain}} asked {{user}} to open a shared document."
+      },
+      {
+        "source": "Browser telemetry",
+        "text": "At {{later}}, {{host}} followed the invitation link and displayed a sign-in page."
+      },
+      {
+        "source": "Helpdesk summary",
+        "text": "The report says “the page looked familiar.” It does not identify the final origin, tenant, or submitted form outcome."
+      }
+    ],
+    "unknowns": [
+      "What final origin and tenant did the redirect chain reach?",
+      "Does the invitation match an approved collaboration?",
+      "Were credentials submitted or a session created?"
+    ],
+    "hypotheses": [
+      "A legitimate external collaboration redirected to an approved sign-in service.",
+      "A lookalike sign-in page attempted to collect authentication information.",
+      "Available telemetry cannot establish the destination or interaction outcome."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read the exact redirect and invitation context",
+        "purpose": "Compare the final origin and tenant with the approved collaboration record.",
+        "tool": "read_invitation_link_context",
+        "scope": "The reported message’s link chain and approval {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Read the browser interaction and session outcome",
+        "purpose": "Distinguish viewing a page, submitting a form, and obtaining a session.",
+        "tool": "read_invitation_interaction_review",
+        "scope": "{{host}} and related identity events in the case window; no password values."
+      },
+      {
+        "id": "background",
+        "label": "Read the service’s public branding description",
+        "purpose": "Provide context while recognizing that branding can be copied.",
+        "tool": "read_service_brand_profile",
+        "scope": "A cached public description of the claimed service."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The redirect ends at the approved identity origin and the verified partner tenant named in {{ticket}}. The invitation document ID matches that collaboration.",
+          "The user completed the expected sign-in flow, and the resulting session opened only the approved document in the inspected interval.",
+          "The claimed service uses the logo and wording shown in the message. Branding alone does not verify the destination origin or tenant."
+        ],
+        "reasoning": "Exact destination and tenant matching plus the expected session outcome support the approved-collaboration explanation. A familiar logo alone would not.",
+        "remaining": [
+          "Whether the document’s permission scope remains appropriate.",
+          "Whether any other invitation links were followed."
+        ],
+        "next": "Record the final origin, tenant, and document identifiers.",
+        "pitfall": "Authenticating an invitation by appearance instead of exact destination and context."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The redirect ends at a different origin that imitates the service’s sign-in page. No matching collaboration invitation exists in the approved record.",
+          "The browser trace records a form submission to that different origin; no corresponding session was issued by the legitimate identity service.",
+          "The claimed service uses the logo and wording shown in the message. Branding alone does not verify the destination origin or tenant."
+        ],
+        "reasoning": "Destination mismatch and submission to the imitating origin support escalation for a credential-collection attempt. The trace deliberately excludes the submitted secret values.",
+        "remaining": [
+          "Whether submitted credentials were later used.",
+          "Whether any related sessions or recovery changes occurred."
+        ],
+        "next": "Review subsequent identity events and request authorized account-response handling.",
+        "pitfall": "Claiming account takeover solely because the user visited a sign-in page."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The proxy log retains the first link but not the final redirect origin, and the collaboration record is unavailable.",
+          "Interaction telemetry confirms page viewing but does not retain a form-submission outcome.",
+          "The claimed service uses the logo and wording shown in the message. Branding alone does not verify the destination origin or tenant."
+        ],
+        "reasoning": "The page was visited, but destination identity and possible credential submission remain unresolved.",
+        "remaining": [
+          "Final redirect origin and tenant.",
+          "Whether a form was submitted and a session issued."
+        ],
+        "next": "Obtain the missing redirect and identity outcomes without collecting password contents.",
+        "pitfall": "Treating page display as proof that the user submitted credentials."
+      }
+    ],
+    "challenge": "List the separate evidence needed to support “visited,” “submitted,” and “authenticated.”",
+    "debriefPrinciple": "Branding, destination identity, and user interaction outcome must be evaluated separately."
+  },
+  {
+    "id": "cloud-storage-exposure",
+    "category": "Cloud & DevOps",
+    "title": "An object store changed its access policy",
+    "assetType": "cloud storage policy",
+    "brief": "Assess a storage-access change by testing effective permissions and examining access outcomes.",
+    "context": "A cloud control-plane alert at {{org}} reports an access-policy change to a project object store. The summary contains a permission statement but does not account for every applicable restriction or the objects involved.",
+    "initial": [
+      {
+        "source": "Control-plane audit",
+        "text": "At {{time}}, a policy on a project object store was changed."
+      },
+      {
+        "source": "Policy summary",
+        "text": "A statement mentioning a broad audience appears in the new policy; the initial summary omits conditions and organization-level restrictions."
+      },
+      {
+        "source": "Data-plane summary",
+        "text": "At {{later}}, requests to the store increased, but their principals, requested objects, and outcomes are not included."
+      }
+    ],
+    "unknowns": [
+      "What access is effective after all relevant conditions and controls?",
+      "Which objects and approval scope are involved?",
+      "Did any external request succeed?"
+    ],
+    "hypotheses": [
+      "A planned change exposes only approved public objects under enforced restrictions.",
+      "The change permits unapproved access to sensitive objects.",
+      "Incomplete policy or access evidence prevents a reliable exposure assessment."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read effective policy and approved scope",
+        "purpose": "Evaluate the complete permission state for the affected objects.",
+        "tool": "read_storage_permission_context",
+        "scope": "The affected store, applicable restrictions, and approval {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Read principal-level object access outcomes",
+        "purpose": "Distinguish requests, denials, and successful object retrievals.",
+        "tool": "read_object_access_audit",
+        "scope": "Requests to affected objects during the case window."
+      },
+      {
+        "id": "background",
+        "label": "Read the store’s total object count",
+        "purpose": "Provide size context without determining exposure.",
+        "tool": "read_storage_inventory_summary",
+        "scope": "Object totals and aggregate size only."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The complete policy restricts the broad-audience statement to a public documentation prefix approved in {{ticket}}. Private prefixes remain denied under the evaluated controls.",
+          "Access logs show successful reads only for the approved public documentation; sampled requests for private objects were denied.",
+          "The store contains many objects of mixed purposes. Aggregate object count does not establish effective permission or successful access to any particular object."
+        ],
+        "reasoning": "Effective scope and recorded access match the intended publication. This conclusion covers the examined policy and objects, not every future configuration.",
+        "remaining": [
+          "Whether later policy changes broaden the scope.",
+          "Whether object classification remains correct."
+        ],
+        "next": "Document the evaluated scope and policy version.",
+        "pitfall": "Reading one broad-looking policy line without evaluating its conditions and other controls."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The effective policy permits unauthenticated reads of a sensitive project prefix, outside the current approval.",
+          "Data-plane audit confirms successful external retrieval of objects from that sensitive prefix.",
+          "The store contains many objects of mixed purposes. Aggregate object count does not establish effective permission or successful access to any particular object."
+        ],
+        "reasoning": "Unapproved effective access and successful sensitive-object reads support escalation. The logs do not establish the identity or later actions of an unauthenticated recipient.",
+        "remaining": [
+          "Which object versions were retrieved.",
+          "How the policy change was initiated."
+        ],
+        "next": "Preserve the policy version and scoped object-access events for response review.",
+        "pitfall": "Claiming data disclosure from a risky policy alone without checking access outcomes."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The policy export omits a referenced access-control condition, so effective access cannot be computed from this packet.",
+          "Access records show request counts but omit outcome and object identifiers.",
+          "The store contains many objects of mixed purposes. Aggregate object count does not establish effective permission or successful access to any particular object."
+        ],
+        "reasoning": "A policy change and traffic increase occurred, but neither effective exposure nor successful retrieval is established.",
+        "remaining": [
+          "Complete policy conditions and restrictions.",
+          "Object-specific request outcomes."
+        ],
+        "next": "Obtain the missing policy and data-plane records.",
+        "pitfall": "Treating an increase in requests as proof that protected objects were downloaded."
+      }
+    ],
+    "challenge": "What belongs in separate “possible exposure” and “observed access” findings?",
+    "debriefPrinciple": "Evaluate complete permissions and distinguish exposure capability from actual access."
+  },
+  {
+    "id": "cloud-policy-expansion",
+    "category": "Cloud & DevOps",
+    "title": "A service identity received broader permissions",
+    "assetType": "cloud IAM policy revision",
+    "brief": "Assess an expanded service-identity policy by comparing approved scope with effective privileges and subsequent use.",
+    "context": "A service identity used by {{org}} received a revised policy. The diff adds actions and resources, but the initial alert does not show why the change was made or whether those privileges were exercised.",
+    "initial": [
+      {
+        "source": "Policy audit",
+        "text": "At {{time}}, the policy for a project service identity was revised to include additional actions."
+      },
+      {
+        "source": "Change summary",
+        "text": "The new version references more resources than the preceding version; approval scope is not attached."
+      },
+      {
+        "source": "API summary",
+        "text": "At {{later}}, that identity made API requests, but the summary omits the exact actions and outcomes."
+      }
+    ],
+    "unknowns": [
+      "Which privileges are effective under the full policy?",
+      "Does the exact expansion match approved work?",
+      "Were newly permitted actions used and with what outcomes?"
+    ],
+    "hypotheses": [
+      "A planned service deployment requires the narrowly approved expansion.",
+      "An unauthorized policy expansion enabled out-of-scope actions.",
+      "Missing policy or activity records obscure the change’s significance."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Compare effective scope with approval",
+        "purpose": "Read the policy version, resource conditions, and exact approved change.",
+        "tool": "read_service_policy_context",
+        "scope": "The alerted identity, both policy versions, and {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Review newly permitted API operations",
+        "purpose": "Check how the added privileges were actually used.",
+        "tool": "read_service_api_audit",
+        "scope": "Calls by the affected identity after the policy change."
+      },
+      {
+        "id": "background",
+        "label": "Read the identity’s historical request total",
+        "purpose": "Provide volume context without validating new privileges.",
+        "tool": "read_service_usage_summary",
+        "scope": "Aggregate request totals for this service identity."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The effective additions are restricted to the deployment’s test resources and match the actions and duration in {{ticket}}.",
+          "Recorded calls use only the newly approved test-resource actions, and the temporary policy version was reverted at the expected time.",
+          "The identity is routinely active. Historical request volume does not authorize added actions or describe the current calls."
+        ],
+        "reasoning": "Exact scope, observed use, and reversion match the approved deployment. This is a bounded assessment of the recorded change.",
+        "remaining": [
+          "Whether all deployment resources are covered by the review.",
+          "Whether any later policy revision exists."
+        ],
+        "next": "Attach the policy version and scoped API evidence to the change review.",
+        "pitfall": "Assuming a larger policy diff always creates unrestricted access."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The effective additions permit credential-management actions on production resources beyond the deployment approval.",
+          "Audit records confirm the identity used a newly added action to create another credential outside the approved resource set.",
+          "The identity is routinely active. Historical request volume does not authorize added actions or describe the current calls."
+        ],
+        "reasoning": "The authorization mismatch and successful out-of-scope credential operation support escalation. Use of the new credential requires separate investigation.",
+        "remaining": [
+          "Who submitted the policy revision.",
+          "Whether the newly created credential was used."
+        ],
+        "next": "Correlate the policy-changing session and the new credential’s activity.",
+        "pitfall": "Treating authorization to deploy one service as approval for all policy additions."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The referenced resource-condition document is missing, and the current approval export is incomplete.",
+          "API summaries cannot be resolved to individual actions or outcomes for this identity.",
+          "The identity is routinely active. Historical request volume does not authorize added actions or describe the current calls."
+        ],
+        "reasoning": "The policy changed, but its effective breadth and practical use are unresolved.",
+        "remaining": [
+          "Complete effective permission inputs.",
+          "Action-level requests and results."
+        ],
+        "next": "Retrieve complete policy inputs and identity-resolved API logs.",
+        "pitfall": "Inferring effective permissions from a partial policy diff."
+      }
+    ],
+    "challenge": "Which exact fields must match between a policy change and its approval?",
+    "debriefPrinciple": "Review effective action and resource scope, then verify the privileges actually exercised."
+  },
+  {
+    "id": "cloud-access-key",
+    "category": "Cloud & DevOps",
+    "title": "A new programmatic credential appeared",
+    "assetType": "cloud access credential",
+    "brief": "Assess a newly created access credential by correlating its creator, intended rotation, and usage.",
+    "context": "A new credential was created for a service identity at {{org}}. A nearby activity burst could represent a routine rotation or another actor, and the alert does not include credential-specific attribution.",
+    "initial": [
+      {
+        "source": "Credential audit",
+        "text": "At {{time}}, a new programmatic credential was created for a project service identity."
+      },
+      {
+        "source": "Lifecycle summary",
+        "text": "An older credential is present in the same identity inventory; its retirement status is omitted."
+      },
+      {
+        "source": "API summary",
+        "text": "At {{later}}, requests appear from {{ip}}, but the summary does not identify which credential signed them."
+      }
+    ],
+    "unknowns": [
+      "Was the exact credential creation part of an approved rotation?",
+      "Which credential signed the later requests?",
+      "Was the old credential retired and the new one used within scope?"
+    ],
+    "hypotheses": [
+      "An approved rotation replaced an expiring credential.",
+      "An unapproved credential was created to maintain access.",
+      "Lifecycle and request attribution are insufficient to distinguish the cases."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read credential creation and rotation context",
+        "purpose": "Verify creator, approval, and lifecycle events without exposing secret material.",
+        "tool": "read_credential_metadata",
+        "scope": "Credential identifiers, creator session, and rotation approval {{ticket}}; no secret values."
+      },
+      {
+        "id": "activity",
+        "label": "Read credential-attributed API calls",
+        "purpose": "Identify the requests made using the new credential and their outcomes.",
+        "tool": "read_credential_usage",
+        "scope": "Calls signed by the new credential during the case window."
+      },
+      {
+        "id": "background",
+        "label": "Read the service’s monthly call volume",
+        "purpose": "Provide general usage context without identifying credential use.",
+        "tool": "read_monthly_service_calls",
+        "scope": "Aggregate service-call count only."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The creator session and credential ID match the approved rotation in {{ticket}}. The old credential was disabled after a short documented overlap.",
+          "The new credential signs only the expected service calls from the approved runner, with resource scope matching the rotation plan.",
+          "The service makes regular monthly calls. Aggregate traffic cannot identify which credential was used or establish approval for its creation."
+        ],
+        "reasoning": "Creation, lifecycle, and credential-attributed use align with the planned rotation. Continued monitoring remains scoped to the service policy.",
+        "remaining": [
+          "Whether the retired credential has any later attempts.",
+          "Whether the new credential’s expiry matches the plan."
+        ],
+        "next": "Record the credential IDs and rotation outcomes without copying secret values.",
+        "pitfall": "Mistaking a documented overlap during rotation for proof of persistence."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The credential was created by an unfamiliar administrative session with no matching rotation approval. The old credential remains active.",
+          "The new credential successfully listed secrets metadata and attempted calls outside the service’s approved resources.",
+          "The service makes regular monthly calls. Aggregate traffic cannot identify which credential was used or establish approval for its creation."
+        ],
+        "reasoning": "Unapproved creation and unexpected credential-attributed use support escalation. Listing metadata does not establish that secret values were retrieved.",
+        "remaining": [
+          "Whether secret-value retrieval succeeded.",
+          "The creator session’s provenance."
+        ],
+        "next": "Review the bounded secret-access outcomes and administrative session.",
+        "pitfall": "Using service-level traffic to attribute activity to a particular credential."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The creation event exists, but its initiating session is missing and the rotation record cannot be retrieved.",
+          "The available request logs lack the credential identifier needed for attribution.",
+          "The service makes regular monthly calls. Aggregate traffic cannot identify which credential was used or establish approval for its creation."
+        ],
+        "reasoning": "Credential creation is established, but approval and subsequent usage cannot be determined from the packet.",
+        "remaining": [
+          "Creator session and exact rotation scope.",
+          "Credential-resolved API records."
+        ],
+        "next": "Request credential metadata and attributable API logs, without requesting secret values.",
+        "pitfall": "Treating a nearby request burst as proof that the new credential made those calls."
+      }
+    ],
+    "challenge": "How can you investigate credential use without ever placing the credential’s secret value in the prompt?",
+    "debriefPrinciple": "Use credential identifiers and audit provenance; secret values are unnecessary for attribution."
+  },
+  {
+    "id": "cloud-compute-spike",
+    "category": "Cloud & DevOps",
+    "title": "A sudden burst of cloud resource creation",
+    "assetType": "cloud compute provisioning",
+    "brief": "Assess a provisioning burst using approved workload scope, initiating identity, and observed resource behavior.",
+    "context": "At {{org}}, cloud monitoring reports a sharp increase in new compute resources. The initial alert emphasizes count and cost estimate but does not establish the workload or creator’s authorization.",
+    "initial": [
+      {
+        "source": "Provisioning summary",
+        "text": "At {{time}}, {{count}} compute resources were requested under one project identity."
+      },
+      {
+        "source": "Resource inventory",
+        "text": "Several resources use a size not common in that project’s recent history."
+      },
+      {
+        "source": "Usage summary",
+        "text": "By {{later}}, some resources are running. The packet omits job labels, creation-session attribution, and network or workload detail."
+      }
+    ],
+    "unknowns": [
+      "Does an approved workload specify this resource count, size, and duration?",
+      "Which session or automation initiated the requests?",
+      "What work is actually running on the created resources?"
+    ],
+    "hypotheses": [
+      "A planned batch or performance test provisioned temporary resources.",
+      "An unauthorized workload consumed project capacity.",
+      "Inventory and runtime gaps prevent attributing the spike."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read the provisioning identity and job plan",
+        "purpose": "Match resource scope and creator session to the approved workload.",
+        "tool": "read_provisioning_context",
+        "scope": "The alerted request set and job approval {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Read scoped workload and teardown records",
+        "purpose": "Inspect the running job identity and lifecycle outcomes.",
+        "tool": "read_compute_job_audit",
+        "scope": "Only the resources created by the alerted request set."
+      },
+      {
+        "id": "background",
+        "label": "Read the project’s monthly spend trend",
+        "purpose": "Provide business context without identifying this workload.",
+        "tool": "read_cost_summary",
+        "scope": "Aggregate historical project spend; no billing changes."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The request set, machine sizes, and initiating automation identity match the approved load test in {{ticket}}.",
+          "The resources run the signed test image, report the expected test job ID, and terminate within the planned interval.",
+          "Monthly spend has fluctuated before. A cost trend cannot identify the current workload or establish that it was authorized."
+        ],
+        "reasoning": "Creator, resource scope, and observed workload align with an approved temporary test. High resource count alone was not sufficient for an incident finding.",
+        "remaining": [
+          "Whether every created resource was terminated.",
+          "Whether any later requests fall outside the test window."
+        ],
+        "next": "Document the request-to-job mapping and verify the complete teardown list.",
+        "pitfall": "Treating cost or size anomalies alone as proof of illicit compute use."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The initiating credential has no matching workload approval, and the requested sizes exceed the project’s authorized job profile.",
+          "Runtime audit shows an unapproved image and sustained outbound connections unrelated to the documented service. Teardown did not occur.",
+          "Monthly spend has fluctuated before. A cost trend cannot identify the current workload or establish that it was authorized."
+        ],
+        "reasoning": "Authorization mismatch and unexpected runtime behavior support escalation for an unauthorized workload. A specific purpose, such as mining, is not established by these facts alone.",
+        "remaining": [
+          "What the unapproved image actually executes.",
+          "Whether the credential was used in other projects."
+        ],
+        "next": "Request scoped image analysis and credential-use correlation through incident review.",
+        "pitfall": "Naming a specific malicious workload from resource size or cost alone."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The creator identity resolves to a shared automation account, but its job invocation records are unavailable.",
+          "Runtime labels are missing and workload telemetry has not arrived.",
+          "Monthly spend has fluctuated before. A cost trend cannot identify the current workload or establish that it was authorized."
+        ],
+        "reasoning": "The resource increase is real, but the initiating job and actual workload remain unresolved.",
+        "remaining": [
+          "The originating automation job.",
+          "Runtime image and task evidence."
+        ],
+        "next": "Retrieve invocation and workload records before assigning a purpose.",
+        "pitfall": "Conflating resource provisioning with evidence of what later ran."
+      }
+    ],
+    "challenge": "Rewrite the alert as observed capacity changes without guessing the workload’s purpose.",
+    "debriefPrinciple": "Provisioning volume, workload purpose, and authorization require different evidence."
+  },
+  {
+    "id": "cloud-ci-secret-read",
+    "category": "Cloud & DevOps",
+    "title": "A build job read a deployment secret",
+    "assetType": "CI secret-access event",
+    "brief": "Assess a secret read by correlating immutable build inputs, approval, and the destination of the resulting deployment.",
+    "context": "A CI job at {{org}} read a deployment secret. Secret access can be required for delivery, but the first alert does not show the job’s source revision, approval, or what it deployed.",
+    "initial": [
+      {
+        "source": "Secret audit",
+        "text": "At {{time}}, a CI workload identity successfully read a deployment secret version."
+      },
+      {
+        "source": "Build summary",
+        "text": "The associated job ran for a change involving {{host}}, but its immutable revision and trust context are absent from the summary."
+      },
+      {
+        "source": "Deployment summary",
+        "text": "At {{later}}, the job reports a completed step; the packet does not identify the target environment or artifact digest."
+      }
+    ],
+    "unknowns": [
+      "Which source revision and workflow definition were executed?",
+      "Was that workload identity authorized to read this secret version?",
+      "What target and artifact resulted from the job?"
+    ],
+    "hypotheses": [
+      "An approved deployment used its narrowly scoped secret.",
+      "An untrusted or modified build accessed a secret outside its intended context.",
+      "Incomplete build provenance prevents assessment of the read."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read immutable build provenance and approval",
+        "purpose": "Match workflow, revision, identity binding, and secret scope to the approved deployment.",
+        "tool": "read_ci_provenance",
+        "scope": "The job, workload identity, secret metadata, and approval {{ticket}}; no secret values."
+      },
+      {
+        "id": "activity",
+        "label": "Read deployment and egress outcomes",
+        "purpose": "Correlate job outputs with the approved target and network destinations.",
+        "tool": "read_ci_job_outcomes",
+        "scope": "The alerted job’s artifact, deployment result, and scoped egress metadata."
+      },
+      {
+        "id": "background",
+        "label": "Read pipeline success-rate history",
+        "purpose": "Understand reliability without validating this run’s provenance.",
+        "tool": "read_ci_reliability_summary",
+        "scope": "Aggregate success and failure counts only."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "Immutable provenance identifies the reviewed revision and protected workflow in {{ticket}}. The workload identity is bound to that workflow and the required secret version.",
+          "The resulting artifact digest and deployment target match the approved release, and recorded egress is limited to the expected services.",
+          "The pipeline usually succeeds. Historical build success does not establish the source revision, authorization, or destination of this run."
+        ],
+        "reasoning": "Provenance, secret scope, and actual deployment outcomes align with the approved release. The secret’s value was unnecessary for this review.",
+        "remaining": [
+          "Whether the deployment health checks remain satisfactory.",
+          "Whether the secret version is rotated according to policy."
+        ],
+        "next": "Attach provenance and deployment identifiers to the review.",
+        "pitfall": "Treating any successful secret read as a leak."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The run executed an unreviewed workflow revision from a lower-trust change context, yet obtained the deployment identity’s secret access.",
+          "The job made an unexpected outbound request and produced no artifact matching the approved release. The request metadata does not reveal its body.",
+          "The pipeline usually succeeds. Historical build success does not establish the source revision, authorization, or destination of this run."
+        ],
+        "reasoning": "The trust-context mismatch and unexpected job outcomes support escalation for improper secret access. The available egress metadata does not prove the secret value was transmitted.",
+        "remaining": [
+          "Whether sensitive content was included in the outbound request.",
+          "How the workload identity binding allowed this run."
+        ],
+        "next": "Review the identity binding and preserve the bounded job records for incident analysis.",
+        "pitfall": "Claiming secret exfiltration merely from a secret read followed by an outbound request."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The job summary names a branch but lacks an immutable revision and workflow digest. Approval records are incomplete.",
+          "The completion message cannot be matched to a deployed artifact or target receipt.",
+          "The pipeline usually succeeds. Historical build success does not establish the source revision, authorization, or destination of this run."
+        ],
+        "reasoning": "A secret read occurred, but source provenance, authorization context, and actual deployment outcome remain unverified.",
+        "remaining": [
+          "Immutable source and workflow identifiers.",
+          "Artifact and deployment receipts."
+        ],
+        "next": "Obtain immutable provenance and target-side deployment evidence.",
+        "pitfall": "Using a mutable branch name or a job’s own success message as complete verification."
+      }
+    ],
+    "challenge": "Which identifiers would make the build and deployment result independently reviewable?",
+    "debriefPrinciple": "Bind secret use to immutable provenance and verify the resulting environment state."
+  },
+  {
+    "id": "cloud-artifact-publish",
+    "category": "Cloud & DevOps",
+    "title": "A release artifact was replaced",
+    "assetType": "software artifact publication",
+    "brief": "Assess a changed release artifact by verifying provenance, authorized publication, and downstream adoption.",
+    "context": "A release registry at {{org}} reports a new digest under an existing release label. The label is convenient for users but does not identify immutable content, and the first packet omits build provenance.",
+    "initial": [
+      {
+        "source": "Registry audit",
+        "text": "At {{time}}, an existing release label was updated to point to a different artifact digest."
+      },
+      {
+        "source": "Publisher summary",
+        "text": "The publication used a service identity; the initiating build and approval are not included."
+      },
+      {
+        "source": "Deployment summary",
+        "text": "At {{later}}, deployment tooling queried the label, but the alert does not state which digest was actually deployed."
+      }
+    ],
+    "unknowns": [
+      "Was replacing this label authorized for this release?",
+      "Does the new digest match a verified build from approved source?",
+      "Which digest did downstream environments actually adopt?"
+    ],
+    "hypotheses": [
+      "An approved rebuild or corrective release updated the label.",
+      "An unapproved artifact was published through the release identity.",
+      "Missing provenance and deployment receipts prevent assessment."
+    ],
+    "checks": [
+      {
+        "id": "context",
+        "label": "Read artifact provenance and publication approval",
+        "purpose": "Match immutable source, build, digest, and approved release action.",
+        "tool": "read_artifact_provenance",
+        "scope": "The old and new digest, publisher session, and approval {{ticket}}."
+      },
+      {
+        "id": "activity",
+        "label": "Read downstream digest receipts",
+        "purpose": "Determine which artifact bytes were adopted by each in-scope environment.",
+        "tool": "read_deployed_artifact_receipts",
+        "scope": "Deployment receipts for environments that queried this release label."
+      },
+      {
+        "id": "background",
+        "label": "Read the release label’s historical update count",
+        "purpose": "Provide history without validating the new content.",
+        "tool": "read_release_label_history",
+        "scope": "Label-update metadata only; no artifact execution."
+      }
+    ],
+    "variants": [
+      {
+        "key": "lower-concern",
+        "disposition": "lower-concern",
+        "results": [
+          "The new digest matches a verified build of the reviewed revision, and {{ticket}} explicitly authorizes replacing this release label.",
+          "Target-side receipts show the approved new digest in the intended test environment; production remains on its documented prior digest.",
+          "The release label has changed in earlier maintenance windows. Previous updates do not authenticate the current digest or authorize this replacement."
+        ],
+        "reasoning": "Publication provenance and target-side adoption match the approved release plan. A matching label alone would not establish the content deployed.",
+        "remaining": [
+          "Whether promotion prerequisites have been met.",
+          "Whether any out-of-scope consumer adopted the label."
+        ],
+        "next": "Record the immutable digests and follow the release promotion criteria.",
+        "pitfall": "Comparing version labels while ignoring artifact digests."
+      },
+      {
+        "key": "suspicious",
+        "disposition": "suspicious",
+        "results": [
+          "The new digest has no matching trusted build provenance, and the publisher session is outside the approved release window.",
+          "A production receipt records the new digest despite the approval allowing only the prior digest.",
+          "The release label has changed in earlier maintenance windows. Previous updates do not authenticate the current digest or authorize this replacement."
+        ],
+        "reasoning": "Unverified publication and confirmed out-of-scope adoption support escalation. The artifact’s behavior requires separate analysis; provenance failure alone does not identify a payload.",
+        "remaining": [
+          "What changes the new artifact contains.",
+          "How the publisher identity was used."
+        ],
+        "next": "Preserve digest-specific evidence and request authorized release incident handling.",
+        "pitfall": "Calling the artifact malware solely because provenance is missing."
+      },
+      {
+        "key": "unresolved",
+        "disposition": "unresolved",
+        "results": [
+          "The approval refers to a release label but omits an immutable digest, and the build attestation has not been retrieved.",
+          "Deployment logs retain the queried label but not the resolved digest or target receipt.",
+          "The release label has changed in earlier maintenance windows. Previous updates do not authenticate the current digest or authorize this replacement."
+        ],
+        "reasoning": "The label changed, but the authorized artifact and actual downstream content cannot be established.",
+        "remaining": [
+          "Verified build-to-digest provenance.",
+          "Resolved deployment digests and target receipts."
+        ],
+        "next": "Retrieve digest-resolved provenance and deployment evidence.",
+        "pitfall": "Treating a label lookup as proof that a particular artifact was deployed."
+      }
+    ],
+    "challenge": "What evidence would prove that the approved bytes, rather than just the approved label, reached the target?",
+    "debriefPrinciple": "Use immutable artifact identities and target-side receipts to verify a release."
+  }
+]

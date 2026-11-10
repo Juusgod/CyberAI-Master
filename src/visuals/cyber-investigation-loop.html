@@ -1,0 +1,132 @@
+<div id="cyber-investigation-loop">
+  <style>
+    #cyber-investigation-loop .loop-header { padding-right: 90px; }
+    #cyber-investigation-loop .loop-figure { width: 100%; display: block; margin: 12px 0; overflow: visible; }
+    #cyber-investigation-loop .loop-figure text { fill: var(--foreground); font-family: inherit; }
+    #cyber-investigation-loop .loop-figure .node-label { font-weight: 500; }
+    #cyber-investigation-loop .loop-figure .node-note { fill: var(--muted-foreground); }
+    #cyber-investigation-loop .loop-figure .edge { fill: none; stroke: var(--border); stroke-width: 1.5; }
+    #cyber-investigation-loop .loop-figure .active-edge { stroke: var(--viz-series-1); }
+    #cyber-investigation-loop .loop-figure .node-box { fill: var(--muted); stroke: none; }
+    #cyber-investigation-loop .loop-figure .active-node { fill: color-mix(in srgb, var(--viz-series-1) 17%, var(--background)); }
+    #cyber-investigation-loop .loop-detail { min-height: 42px; margin: 12px 0 0; }
+    #cyber-investigation-loop .loop-status { margin-top: 8px; }
+  </style>
+  <div class="loop-header">
+    <h3>One prompt inside a controlled loop</h3>
+    <span class="text-small text-muted">Simulated case · at most 2 read-only calls</span>
+  </div>
+  <svg class="loop-figure" role="img" aria-labelledby="cyber-loop-title cyber-loop-desc"></svg>
+  <div class="viz-controls" aria-label="Investigation steps">
+    <button type="button" class="btn" data-back disabled>Back</button>
+    <button type="button" class="btn btn-primary" data-next>Next step</button>
+    <span class="tabular-nums" data-position>Step 1 of 6</span>
+  </div>
+  <div class="loop-detail" aria-live="polite" data-detail>E1: 18 failures. E2: one success. Compromise is unproven.</div>
+  <div class="loop-status text-small text-muted" data-budget>Tool calls used: 0 / 2</div>
+  <script>
+    (() => {
+      const root = document.getElementById('cyber-investigation-loop');
+      const svg = root.querySelector('.loop-figure');
+      const back = root.querySelector('[data-back]');
+      const next = root.querySelector('[data-next]');
+      const position = root.querySelector('[data-position]');
+      const detail = root.querySelector('[data-detail]');
+      const budget = root.querySelector('[data-budget]');
+      const ns = 'http://www.w3.org/2000/svg';
+      let step = 0;
+      const states = [
+        {title: '1 Observe', note: 'E1 + E2', detail: 'E1: 18 failures. E2: one success. Compromise is unproven.', calls: 0},
+        {title: '2 Decide', note: 'Prompt: next useful check', detail: 'Next useful evidence: MFA and device context for this login.', calls: 0},
+        {title: '3 Policy gate', note: 'Code enforces scope', detail: 'The controller permits one scoped, read-only auth_context call.', calls: 0},
+        {title: '4 Read tool', note: 'auth_context', detail: 'E3: registered managed device; phishing-resistant MFA succeeded.', calls: 1},
+        {title: '5 Verify', note: 'Evidence + inference', detail: 'Check E1–E3: lower concern is an inference; the failures remain unexplained.', calls: 1},
+        {title: '6 Finish / review', note: 'Preserve uncertainty', detail: 'Lower concern; cause unresolved; analyst review. No account changes.', calls: 1}
+      ];
+      function el(tag, attrs, text) {
+        const node = document.createElementNS(ns, tag);
+        Object.entries(attrs || {}).forEach(([key, value]) => node.setAttribute(key, value));
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+      function edge(path, active) {
+        svg.appendChild(el('path', {d: path, class: active ? 'edge active-edge' : 'edge', 'marker-end': 'url(#cyber-loop-arrow)'}));
+      }
+      function label(x, y, value, attrs) {
+        svg.appendChild(el('text', Object.assign({x, y, 'text-anchor': 'middle', class: 'text-small'}, attrs || {}), value));
+      }
+      function draw() {
+        const width = Math.max(260, Math.round(root.getBoundingClientRect().width));
+        const mobile = width < 560;
+        const height = mobile ? 601 : 415;
+        svg.replaceChildren();
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        svg.setAttribute('height', height);
+        svg.appendChild(el('title', {id: 'cyber-loop-title'}, 'A bounded, read-only SOC investigation loop'));
+        svg.appendChild(el('desc', {id: 'cyber-loop-desc'}, 'Observe evidence, ask the model for the next useful check, enforce permissions in code, read an allowed tool, verify, and finish with uncertainty. Continue only for a useful new check within the two-call budget. Tool errors, no new evidence, or exhausted budget go to analyst review. The model does not grant its own permissions.'));
+        const defs = el('defs');
+        const marker = el('marker', {id: 'cyber-loop-arrow', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse'});
+        marker.appendChild(el('path', {d: 'M 1 1 L 8 5 L 1 9', fill: 'none', stroke: 'var(--muted-foreground)', 'stroke-width': 1.5}));
+        defs.appendChild(marker);
+        svg.appendChild(defs);
+        let nodes;
+        if (mobile) {
+          const boxWidth = width - 70;
+          nodes = states.map((_, index) => ({x: 35, y: 10 + index * 96, w: boxWidth, h: 64}));
+          for (let i = 0; i < nodes.length - 1; i++) {
+            const a = nodes[i], b = nodes[i + 1];
+            edge(`M ${width / 2} ${a.y + a.h} V ${b.y - 3}`, step === i + 1);
+          }
+          const verify = nodes[4], observe = nodes[0], finish = nodes[5];
+          edge(`M ${verify.x} ${verify.y + 32} H 13 V ${observe.y + 32} H ${observe.x - 3}`, false);
+          label(12, 230, 'Useful new check', {transform: 'rotate(-90 12 230)'});
+          edge(`M ${nodes[2].x + nodes[2].w} ${nodes[2].y + 32} H ${width - 13} V ${finish.y + 32} H ${finish.x + finish.w + 3}`, false);
+          label(width - 12, 380, 'Error / no evidence / limit', {transform: `rotate(90 ${width - 12} 380)`});
+        } else {
+          const boxWidth = Math.min(218, (width - 135) / 2);
+          const left = 42, right = width - boxWidth - 42;
+          nodes = [
+            {x: left, y: 14, w: boxWidth, h: 66},
+            {x: right, y: 14, w: boxWidth, h: 66},
+            {x: right, y: 120, w: boxWidth, h: 66},
+            {x: right, y: 226, w: boxWidth, h: 66},
+            {x: left, y: 226, w: boxWidth, h: 66},
+            {x: (width - boxWidth) / 2, y: 340, w: boxWidth, h: 66}
+          ];
+          edge(`M ${left + boxWidth} 47 H ${right - 3}`, step === 1);
+          edge(`M ${right + boxWidth / 2} 80 V 117`, step === 2);
+          edge(`M ${right + boxWidth / 2} 186 V 223`, step === 3);
+          edge(`M ${right} 259 H ${left + boxWidth + 3}`, step === 4);
+          edge(`M ${left + boxWidth / 2} 292 V 373 H ${nodes[5].x - 3}`, step === 5);
+          edge(`M ${left} 259 H 16 V 47 H ${left - 3}`, false);
+          label(15, 153, 'Useful new check', {transform: 'rotate(-90 15 153)'});
+          edge(`M ${right + boxWidth} 153 H ${width - 16} V 373 H ${nodes[5].x + boxWidth + 3}`, false);
+          label(width - 14, 261, 'Error / no evidence / limit', {transform: `rotate(90 ${width - 14} 261)`});
+          label(width / 2, 318, 'Stop when a reviewable result is ready');
+        }
+        nodes.forEach((box, index) => {
+          const group = el('g', {'aria-label': states[index].title + ': ' + states[index].note});
+          group.appendChild(el('rect', {x: box.x, y: box.y, width: box.w, height: box.h, rx: 10, class: index === step ? 'node-box active-node' : 'node-box'}));
+          if (index === step) {
+            group.appendChild(el('rect', {x: box.x, y: box.y + 15, width: 4, height: box.h - 30, rx: 2, fill: 'var(--viz-series-1)'}));
+          }
+          group.appendChild(el('text', {x: box.x + box.w / 2, y: box.y + 26, 'text-anchor': 'middle', class: 'node-label'}, states[index].title));
+          group.appendChild(el('text', {x: box.x + box.w / 2, y: box.y + 47, 'text-anchor': 'middle', class: 'node-note text-small'}, states[index].note));
+          svg.appendChild(group);
+        });
+      }
+      function update() {
+        back.disabled = step === 0;
+        next.disabled = step === states.length - 1;
+        position.textContent = `Step ${step + 1} of ${states.length}`;
+        detail.textContent = states[step].detail;
+        budget.textContent = `Tool calls used: ${states[step].calls} / 2`;
+        draw();
+      }
+      back.addEventListener('click', () => { if (step > 0) { step -= 1; update(); } });
+      next.addEventListener('click', () => { if (step < states.length - 1) { step += 1; update(); } });
+      new ResizeObserver(draw).observe(root);
+      update();
+    })();
+  </script>
+</div>

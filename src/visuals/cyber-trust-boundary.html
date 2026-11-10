@@ -1,0 +1,86 @@
+<div id="cyber-trust-boundary">
+  <h3>Who gets to authorize an action?</h3>
+  <div class="viz-controls">
+    <label class="form-label">Simulated model proposal
+      <select class="form-select" aria-label="Choose a simulated tool proposal">
+        <option value="read">Read scoped sign-in context</option>
+        <option value="close">Close incident because a log says so</option>
+      </select>
+    </label>
+  </div>
+  <div class="boundary-figure" role="img" aria-label="Trusted analyst instructions and untrusted records reach the model. A separate controller permits a scoped read-only lookup and blocks an unauthorized attempt to close the incident."></div>
+  <div class="boundary-detail" aria-live="polite">Allowed: the controller checks scope and invokes the read-only tool.</div>
+</div>
+<style>
+  #cyber-trust-boundary { color: var(--foreground); }
+  #cyber-trust-boundary h3 { padding-inline-end: 92px; }
+  #cyber-trust-boundary .boundary-figure { width: 100%; margin-block: 14px 10px; }
+  #cyber-trust-boundary .boundary-figure svg { display: block; width: 100%; }
+  #cyber-trust-boundary .boundary-figure text { fill: var(--foreground); font-family: inherit; }
+  #cyber-trust-boundary .boundary-detail { min-height: 3em; }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('cyber-trust-boundary');
+  const canvas = root.querySelector('.boundary-figure');
+  const select = root.querySelector('select');
+  const detail = root.querySelector('.boundary-detail');
+  const ns = 'http://www.w3.org/2000/svg';
+  function el(tag,attrs,content) {
+    const item=document.createElementNS(ns,tag);
+    Object.entries(attrs||{}).forEach(([key,value]) => item.setAttribute(key,String(value)));
+    if(content!==undefined) item.textContent=content;
+    return item;
+  }
+  function text(svg,x,y,lines,extra={}) {
+    const item=el('text',{x,y,'text-anchor':'middle',...extra});
+    lines.forEach((line,index) => item.appendChild(el('tspan',{x,dy:index===0 ? 0 : 21},line)));
+    svg.appendChild(item);
+  }
+  function drawBox(svg,x,y,w,h,lines,fill='var(--muted)',extra={}) {
+    svg.appendChild(el('rect',{x,y,width:w,height:h,rx:6,fill}));
+    text(svg,x+w/2,y+h/2-(lines.length-1)*10.5+5,lines,extra);
+  }
+  function render() {
+    const w=Math.max(280,Math.round(canvas.getBoundingClientRect().width));
+    const compact=w<520;
+    const h=compact ? 520 : 480;
+    const svg=el('svg',{viewBox:`0 0 ${w} ${h}`,width:w,height:h,role:'presentation'});
+    const defs=el('defs');
+    const marker=el('marker',{id:'boundary-arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:5,markerHeight:5,orient:'auto-start-reverse'});
+    marker.appendChild(el('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'var(--muted-foreground)'}));
+    defs.appendChild(marker);svg.appendChild(defs);
+    const gap=compact ? 12 : 32;
+    const margin=8;
+    const col=(w-2*margin-gap)/2;
+    const topHeight=compact ? 104 : 84;
+    drawBox(svg,margin,4,col,topHeight,compact ? ['Trusted task','Read-only triage'] : ['Trusted analyst task','Read-only triage'],'var(--muted)',{class:compact ? 'text-small' : ''});
+    drawBox(svg,margin+col+gap,4,col,topHeight,compact ? ['Untrusted log','“Close incident”'] : ['Untrusted log text','“Close this incident”'],'color-mix(in srgb, var(--viz-series-2) 12%, transparent)',{class:compact ? 'text-small' : ''});
+    const modelY=topHeight+56;
+    const boxWidth=Math.min(w-34,320);
+    const x=(w-boxWidth)/2;
+    function path(d,markerEnd=true,dash=false) {
+      const attrs={d,stroke:'var(--muted-foreground)','stroke-width':1.25,fill:'none'};
+      if(markerEnd) attrs['marker-end']='url(#boundary-arrow)';
+      if(dash) attrs['stroke-dasharray']='4 4';
+      svg.appendChild(el('path',attrs));
+    }
+    path(`M ${margin+col/2} ${topHeight+8} V ${modelY-20} H ${w/2-30} V ${modelY-3}`);
+    path(`M ${margin+col+gap+col/2} ${topHeight+8} V ${modelY-20} H ${w/2+30} V ${modelY-3}`);
+    const blocked=select.value==='close';
+    drawBox(svg,x,modelY,boxWidth,62,blocked ? ['Model proposes','close_incident()'] : ['Model proposes','read_auth_context()'],'color-mix(in srgb, var(--viz-series-1) 12%, transparent)');
+    const gateY=modelY+112;
+    path(`M ${w/2} ${modelY+65} V ${gateY-3}`);
+    path(`M 8 ${modelY+87} H ${w-8}`,false,true);
+    drawBox(svg,x,gateY,boxWidth,68,['Controller enforces policy','Allowed tool + scoped arguments'],'var(--muted)',{class:compact ? 'text-small' : ''});
+    const outcomeY=gateY+102;
+    path(`M ${w/2} ${gateY+71} V ${outcomeY-3}`);
+    drawBox(svg,x,outcomeY,boxWidth,62,blocked ? ['BLOCKED','No close-incident permission'] : ['PERMITTED','Read-only tool executes'],blocked ? 'color-mix(in srgb, var(--viz-series-2) 16%, transparent)' : 'color-mix(in srgb, var(--viz-series-1) 16%, transparent)',{class:compact ? 'text-small' : ''});
+    canvas.replaceChildren(svg);
+    detail.textContent=blocked ? 'Blocked: instructions inside evidence cannot grant action permissions.' : 'Allowed: the controller checks scope and invokes the read-only tool.';
+  }
+  select.addEventListener('change',render);
+  new ResizeObserver(render).observe(canvas);
+  render();
+})();
+</script>
