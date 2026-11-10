@@ -4,6 +4,16 @@
 
 A visual, interactive field guide to AI prompt engineering and controlled investigation loops. The entire lesson and scenario generator run locally in one HTML file, with no hosting costs or AI API charges.
 
+## Quick setup & sharing instructions
+
+**Windows (for you or a friend):** Download the repository using **Code → Download ZIP**, select **Extract All**, then double-click `Create_Desktop_Shortcut.cmd`. Launch the new **CyberAI Master** desktop shortcut. Keep the extracted folder, including its `assets` subfolder, in place; if you move it, run the shortcut creator again.
+
+**What's included:** The six visual missions, three interactive diagrams, 36 scenario families (108 authored outcome paths), replay codes, local notes and progress backups, the original mint-shield logo, a Windows `.ico` desktop icon and editable source files.
+
+**Requirements:** A modern browser is enough. No hosting, installation, account, API key, subscription, or internet access is required for the offline lessons and exercises. `Start_Local_Server.py` is optional and requires Python 3 only if you prefer localhost.
+
+**Sharing:** This repository is **private**. Invite your friend as a collaborator to let them access its GitHub URL, or send them `Cybersecurity_AI_Lab_Offline.zip` directly. They should extract the ZIP before running the desktop-shortcut creator.
+
 ## Start on Windows — no installation needed
 
 1. On this GitHub page, select **Code → Download ZIP**.
